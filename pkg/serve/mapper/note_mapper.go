@@ -7,8 +7,8 @@ import (
 	"errors"
 	"time"
 
-	"heago-scaffold/internal/db"
-	model "heago-scaffold/internal/model/note"
+	"healgo-scaffold/internal/db"
+	model "healgo-scaffold/internal/model/note"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

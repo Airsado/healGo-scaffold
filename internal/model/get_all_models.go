@@ -2,9 +2,9 @@
 package model
 
 import (
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/model/note"
-	"heago-scaffold/internal/settings"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/model/note"
+	"healgo-scaffold/internal/settings"
 )
 
 // GetAllModels 不执行 SQL新增业务模型时在这里显式登记，启动阶段统一迁移

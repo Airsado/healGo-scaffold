@@ -1,6 +1,31 @@
 # 验证记录
 
-最近验证：2026-10-29。当前工具链为 Go 1.26.10。以下按日期区分本轮修复、双数据库迭代、此前 MVC 重构及旧部署实测，不代表未来业务自动满足相同条件。
+最近验证：2026-10-29。当前工具链为 Go 1.26.10。以下按日期区分路由与 Wire 对齐、名称更正、安全修复、双数据库迭代及旧部署实测，不代表未来业务自动满足相同条件。
+
+## 路由与 Wire 对齐 gin-scaffold（2026-10-29）
+
+本轮对照 gin-scaffold 固定提交 `22e3136bc4d09505824f2ca391d6fa20309790b6` 的路由与 Wire 源码。默认 `NewContainer` 使用 Wire 生成图，可选手写入口为 `NewContainerManual`；CLI 默认 `-di wire`，`-di manual` 显式选择手写装配。按层 provider sets 保留，容器改用 `wire.Struct` 按字段装配，生命周期字段以 `wire:"-"` 排除，不再维护长参数容器构造函数。
+
+`router.NewEngine(container)` 准备 Gin、全局中间件、探活与统一错误响应，`router.New(engine, container)` 只检查路由依赖、建立分组并显式挂载模块。模块统一以 Container 为首参，使用原生 Gin API；Container 不传入 Controller/Service。HTTP 路径、权限、示例开关及初始化/停机顺序保持原语义。开发与扩展文档已同步实际路由、字段与 provider 示例。
+
+| 本轮实际检查 | 结果 |
+|---|---|
+| Windows / Go 1.26.10，全量 `go test -mod=readonly -count=1 ./... -timeout 180s` | 通过；此命令清空数据库测试变量，真实数据库测试在下列独立步骤执行 |
+| 一次性 PostgreSQL 16 / MySQL 8.4，分别运行 `go test -mod=readonly -count=1 ./pkg/wire ./pkg/router/... -timeout 180s` | 两种驱动均通过；覆盖双装配初始化、示例隔离、系统/CRUD/流协议 HTTP 行为与清理 |
+| 新增无数据库启动回归 | 引擎/路由分步登记、缺失依赖、无效代理脱敏、重复登记错误、登录限流预算均通过 |
+| `go generate ./pkg/wire`、`go tool wire diff ./pkg/wire` | 真实生成成功，最终无生成差异 |
+| `go vet ./...`、两个入口分别 `go build -mod=readonly`、`go mod tidy -diff` | 通过，无依赖差异 |
+| 文档与格式 | 318 个相对文件链接、97 个开发文档文件链接/标题锚点检查通过；维护目录 README、注释和 `git diff --check` 通过 |
+
+测试使用随机凭据、loopback 随机端口和隔离 schema/database，专用容器及其匿名数据卷已清理。未访问既有私有配置或修改运行中的应用；本轮未重跑 Linux race、主从故障、漏洞扫描或 Docker 镜像构建，下列相关结果仍属于此前对应迭代。
+
+## 项目名称更正（2026-10-29）
+
+项目显示名由 `heaGo-scaffold` 更正为 `healGo-scaffold`，Go 模块和所有内部导入路径改为 `healgo-scaffold`，构建产物改为 `healgo-server` / `healgo-example`，镜像使用 `healgo-scaffold:local`。README、NOTICE、配置示例、CI、MVC 文档及 Wire 生成代码同步新名称。
+
+配置密文 v1 的 AAD 历史字节固定为版本常量，并用历史密文向量验证继续可解密。Compose 部署资源标识继续使用 `heago-scaffold` 以定位原有数据卷和网络；数据库、锁命名空间和 `HEAGO_` 环境契约沿用现有标识。未修改私有配置或数据库内容，也未移动本机检出目录。下方历史验收中的资源名、镜像标签和构建路径按当时实际值保留，不能当作改名后重新执行的证据。
+
+本轮 Windows / Go 1.26.10 的全量 `go test -count=1 ./... -timeout 180s`、`go vet ./...`、Wire diff、两个新名称入口产物构建、`go mod tidy -diff`、Compose 配置校验及 297 个本地文档链接检查均通过。新增固定历史密文向量验证可读性及配置项绑定。未设置真实数据库测试变量，对应集成测试跳过；未重新执行主从、race、漏洞扫描或 Docker 镜像构建，下方结果对应此前安全补丁修复。
 
 ## 安全补丁与仓库审查修复（2026-10-29）
 

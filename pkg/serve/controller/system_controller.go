@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/middleware"
-	"heago-scaffold/internal/response"
-	"heago-scaffold/internal/settings"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/middleware"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/internal/settings"
 
 	"github.com/gin-gonic/gin"
 )

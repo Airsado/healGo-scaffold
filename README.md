@@ -1,8 +1,8 @@
-# heaGo-scaffold
+# healGo-scaffold
 
 一个可独立复制使用的 Go 后端模板：Gin + PostgreSQL/MySQL 8 + GORM + Sa-Token-Go。采用固定 MVC 分层目录；启动配置放文件，可编辑配置持久化到数据库。默认单库，支持可选单主单副本读写分离。
 
-参考 [Done-0/gin-scaffold](https://github.com/Done-0/gin-scaffold/tree/22e3136bc4d09505824f2ca391d6fa20309790b6) 的 main/cmd 入口、集中模型登记、routes、controller、service/impl、mapper 和 VO 组织方式。默认使用手写构造函数注入，同时保留集中 provider sets 与可选 Wire 生成。
+参考 [Done-0/gin-scaffold](https://github.com/Done-0/gin-scaffold/tree/22e3136bc4d09505824f2ca391d6fa20309790b6) 的 main/cmd 入口、集中模型登记、routes、controller、service/impl、mapper 和 VO 组织方式。默认使用 Wire 按层声明 provider 并生成显式构造代码，也提供可选手写注入。
 
 ## 从哪里开始写业务
 
@@ -50,7 +50,7 @@ go run ./cmd/example serve -config configs/config.local.yaml
 ## 目录与依赖方向
 
 ```text
-heaGo-scaffold/
+healGo-scaffold/
 ├── main.go                     # 默认入口 → cmd.Run
 ├── cmd/
 │   ├── gin_server.go            # 公共命令、配置、注入选择与生命周期
@@ -70,6 +70,7 @@ heaGo-scaffold/
 ├── pkg/
 │   ├── bootstrap/              # 模型准备、种子、HTTP 与资源关闭
 │   ├── router/
+│   │   ├── engine.go           # Gin 引擎、全局中间件与探活
 │   │   ├── router.go           # 路由总入口
 │   │   └── routes/             # system/note/realtime 路由
 │   ├── serve/
@@ -77,16 +78,18 @@ heaGo-scaffold/
 │   │   ├── service/impl/       # 用例接口与实现
 │   │   └── mapper/             # GORM 数据访问
 │   ├── vo/                     # 公开响应与转换
-│   └── wire/                   # Container、手写注入、集中 providers、可选 Wire
+│   └── wire/                   # Container、集中 providers、默认 Wire、可选手写注入
 ├── docs/
 ├── scripts/
 ├── Dockerfile
 └── compose.yaml
 ```
 
-CLI 默认调用 `wire.NewContainer(ctx, cfg, opts)` 手写注入，`-di wire` 切换为同签名的 `NewContainerWithWire`。Container 完成集中模型准备与种子后，调用 `router.New(container)`，再交给 Runtime 监听。wire 不反向 import router，避免循环依赖。
+CLI 默认调用 `wire.NewContainer(ctx, cfg, opts)` 使用 Wire 生成图，`-di manual` 选择同签名的 `NewContainerManual`。Container 完成集中模型准备与种子后，调用 `router.NewEngine(container)` 设置 Gin，再调用 `router.New(engine, container)` 显式分组和登记模块，最后交给 Runtime 监听。wire 不反向 import router，避免循环依赖。
 
-HTTP 控制器处理参数和状态码；service/impl 实现规则；mapper 执行 SQL；VO 选择公开字段。停机在同一预算内排空 HTTP 和 WebSocket，再按 Streams → Auth → DB 清理资源。`internal` 包仅供当前 Go module 使用；固定目录的命名与依赖见 [目录规范](docs/CONVENTIONS.md)，手写注入与 Wire 图见 [依赖注入说明](pkg/wire/README.md)。
+模块统一写成 `routes.RegisterXxxRoutes(container, group)`，内部使用原生 Gin 的 `Group`、`GET`、`POST`。新增依赖在 Container 增加 Controller 字段，并在 providers.go 对应层登记构造函数和必要的接口绑定，再执行 `go generate ./pkg/wire`；完整接入代码见 [扩展手册](docs/EXTENDING.md)。
+
+HTTP 控制器处理参数和状态码；service/impl 实现规则；mapper 执行 SQL；VO 选择公开字段。停机在同一预算内排空 HTTP 和 WebSocket，再按 Streams → Auth → DB 清理资源。`internal` 包仅供当前 Go module 使用；固定目录的命名与依赖见 [目录规范](docs/CONVENTIONS.md)，Wire 与手写注入见 [依赖注入说明](pkg/wire/README.md)。
 ## 文件配置与数据库配置
 
 | 放在哪里 | 内容 | 修改生效方式 |
@@ -104,7 +107,9 @@ secret 配置使用 AES-256-GCM，读取 API 只提供 `secret/configured/revisi
 
 ## Docker 启动
 
-需要 Docker Compose v2。配置生成脚本在 Windows 上需要 PowerShell 7，在 Linux/macOS 上需要 OpenSSL。以下命令均在 **本目录** 运行，部署项目名固定为 `heago-scaffold`。
+需要 Docker Compose v2。配置生成脚本在 Windows 上需要 PowerShell 7，在 Linux/macOS 上需要 OpenSSL。以下命令均在 **本目录** 运行，部署资源标识固定为 `heago-scaffold`。
+
+该标识用于继续定位已有数据卷和网络，应用镜像使用 `healgo-scaffold:local`。修改部署标识需要单独规划数据卷迁移；项目显示名和 Go 模块名的更正不迁移这些资源。已生成的私有配置和数据库中保存的显示名称按原配置生效。
 
 ```powershell
 # PowerShell 7：生成随机密码和密钥，已存在时不会覆盖
@@ -170,8 +175,8 @@ go generate ./pkg/wire
 go tool wire diff ./pkg/wire
 go test ./...
 go vet ./...
-go build -o .build/heago-server .
-go build -o .build/heago-example ./cmd/example
+go build -o .build/healgo-server .
+go build -o .build/healgo-example ./cmd/example
 ```
 
 真实数据库测试使用 `HEAGO_TEST_DATABASE_URL`（PostgreSQL URL）或 `HEAGO_TEST_MYSQL_DSN`（MySQL DSN），两者均未设置时明确 skip。分别运行两种驱动；同时设置只会优先 PostgreSQL。测试创建并清理随机 schema/database，只能指向专用测试实例。Linux 有 C 编译器时运行 `go test -race ./...`。测试环境变量只是测试入口，应用启动仍读取 YAML；实际覆盖范围见验证记录。

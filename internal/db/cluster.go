@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"heago-scaffold/configs"
+	"healgo-scaffold/configs"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"

@@ -71,7 +71,7 @@ noteService := impl.NewNoteService(noteMapper)
 noteController := controller.NewNoteController(noteService)
 ```
 
-手写入口在 [manual.go](../pkg/wire/manual.go)，可选 Wire 在 [providers.go](../pkg/wire/providers.go)。服务实现仍只接收 `service.NoteMapper` 接口。自己构造 `mapper.NewNoteMapper(cluster.Primary)` 时，所有方法都固定主库。
+默认 Wire 在 [providers.go](../pkg/wire/providers.go) 声明 mapper provider，可选手写入口在 [manual.go](../pkg/wire/manual.go)。服务实现仍只接收 `service.NoteMapper` 接口。自己构造 `mapper.NewNoteMapper(cluster.Primary)` 时，所有方法都固定主库。
 
 新增允许延迟的查询，使用 `Cluster.Read(ctx, fn)`；以下是可放在当前 module 的完整示例：
 
@@ -82,9 +82,9 @@ import (
     "context"
     "errors"
 
-    "heago-scaffold/internal/db"
-    model "heago-scaffold/internal/model/note"
-    "heago-scaffold/pkg/serve/service"
+    "healgo-scaffold/internal/db"
+    model "healgo-scaffold/internal/model/note"
+    "healgo-scaffold/pkg/serve/service"
     "gorm.io/gorm"
 )
 

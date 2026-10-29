@@ -14,10 +14,10 @@
 | HTTP | [note_controller.go](../pkg/serve/controller/note_controller.go)、[note_dto.go](../pkg/serve/controller/dto/note_dto.go) | task_controller.go / task_dto.go |
 | 响应 | [note_vo.go](../pkg/vo/note_vo.go) | task_vo.go：公开字段与显式转换 |
 | 路由 | [note_routes.go](../pkg/router/routes/note_routes.go) | task_routes.go：方法、路径和权限，再由 router.go 调用 |
-| 默认手写装配 | [manual.go](../pkg/wire/manual.go)、[container.go](../pkg/wire/container.go) | 构造 mapper → impl → controller，保存需要的 Container 字段 |
-| 可选 Wire | [providers.go](../pkg/wire/providers.go)、[infrastructure.go](../pkg/wire/infrastructure.go) | 添加相应 provider、接口绑定与容器构造参数，重新生成 |
+| 默认 Wire 装配 | [container.go](../pkg/wire/container.go)、[providers.go](../pkg/wire/providers.go)、[wire.go](../pkg/wire/wire.go) | 增加 Controller 字段、按层 provider 和接口绑定，再生成依赖图 |
+| 可选手写装配 | [manual.go](../pkg/wire/manual.go) | 构造 mapper → impl → controller，写入 Container 字面量 |
 
-构造函数不查表、不迁移、不启动任务。只有 Container 的公共收尾 `finish` 调用 Prepare，统一模型准备和种子，之后 CLI 才调用 router.New。
+构造函数不查表、不迁移、不启动任务。Container 的公共收尾 `finish` 调用 Prepare，统一模型准备和种子；之后 CLI 调用 `router.NewEngine(container)` 建立引擎，再调用 `router.New(engine, container)` 登记路由。
 
 ## 2. 新增一条最小 CRUD
 
@@ -27,31 +27,69 @@
 4. 在 mapper 实现参数化 SQL。参考 `mapper.NewNoteMapper(*gorm.DB) (*mapper.NoteMapper, error)`，每次 I/O 传 ctx，读写都带可信 owner，修改/删除比较 revision。
 5. 在 controller 注入服务接口，读取 Principal、严格绑定 DTO、传 ctx、分类错误并转 VO；不把表模型直接返回。
 6. 在 routes 声明路径和权限，由 router 总入口注册；实际业务登记在正式路由中，不放在 EnableExamples 分支。
-7. 接入下节的两条装配路径和集中模型列表。migrate 后 serve，验证当前 CRUD 主流程与权限/并发边界即可。
+7. 在 Container 增加 Controller 字段，接入下节的分层 provider、接口绑定和集中模型列表，再执行 `go generate ./pkg/wire`。需要手写路径时同步 manual.go。migrate 后 serve，验证当前 CRUD 主流程与权限/并发边界即可。
 
 同一层的文件按资源命名，不把不同资源都写进一个 controller.go。复制笔记代码时替换 Note 类型、imports、example_notes 表名/索引、example:notes 权限和 examples/notes 路径；只在固定各层增加文件，不复制整个框架。
 
-## 3. 默认手写注入与可选 Wire
+## 3. 默认 Wire 注入与可选手写装配
 
-默认路径为 `wire.NewContainer`。在 [manual.go](../pkg/wire/manual.go) 找到真实构造顺序：
+默认 `wire.NewContainer(ctx, cfg, opts)` 调用生成的 `buildWithWire`，CLI 默认 `-di wire`。新增资源通常修改三个地方：在 [Container](../pkg/wire/container.go) 增加 Controller 字段，在 [providers.go](../pkg/wire/providers.go) 的对应层登记构造函数和接口绑定，在路由模块与中央入口登记路径；持久化资源还要加入集中模型列表。
 
-```go
-noteMapper, err := mapper.NewNoteMapperWithReader(cluster)
-if err != nil { return nil, nil, err }
-noteService := impl.NewNoteService(noteMapper)
-noteController := controller.NewNoteController(noteService)
-```
-
-这是 buildManual 内的摘录，完整错误清理与返回值见源码。新增资源按相同顺序构造，再传给 newContainer 并保留需要供路由使用的字段。不要绕过现有的逆序 cleanup 或在中途重复打开共享 DB。
-
-[providers.go](../pkg/wire/providers.go) 集中提供 InfrastructureProviders、MapperProviders、ServiceProviders、ControllerProviders、AllProviders。当前 MapperProviders 包含真实构造及绑定：
+以下为当前 Container 的字段声明，放在已有 container.go，保留该文件的 imports 和生命周期方法：
 
 ```go
-var MapperProviders = wire.NewSet(mapper.NewNoteMapperWithReader,
-    wire.Bind(new(service.NoteMapper), new(*mapper.NoteMapper)))
+type Container struct {
+    Config configs.Config
+    bootstrap.Resources
+    EnableExamples     bool
+    NoteMapper         *mapper.NoteMapper
+    NoteService        service.NoteService
+    SystemController   *controller.SystemController
+    NoteController     *controller.NoteController
+    RealtimeController *controller.RealtimeController
+    // 生命周期由 finish 和 Close 管理，不参与字段注入
+    cleanup   func()    `wire:"-"`
+    closeOnce sync.Once `wire:"-"`
+}
 ```
 
-NewNoteService 已返回服务接口，controller 不依赖具体实现。新增资源时同步各层 provider 与容器参数，再生成唯一依赖图：
+Container 只在装配和路由层传递。`NoteController` 的构造函数仍接收 `service.NoteService`，Service 仍接收 `service.NoteMapper`；handler 不通过 Container 临时查找依赖。示例保留 Mapper/Service 字段供验证使用，新业务按实际装配和路由需要增加字段。
+
+[providers.go](../pkg/wire/providers.go) 按 Infrastructure、Mapper、Service、Controller、All 分层组织。以下三个集合是当前笔记与系统控制器的真实登记方式，使用该文件已有的 Wire、mapper、service、impl、controller imports：
+
+```go
+var MapperProviders = wire.NewSet(
+    mapper.NewNoteMapperWithReader,
+    wire.Bind(new(service.NoteMapper), new(*mapper.NoteMapper)),
+)
+
+var ServiceProviders = wire.NewSet(
+    impl.NewNoteService,
+)
+
+var ControllerProviders = wire.NewSet(
+    controller.NewNoteController,
+    provideSystemController,
+    provideRealtimeController,
+)
+```
+
+`NewNoteService` 已返回服务接口，所以这里无需额外绑定它。返回具体实现的构造函数，则用 `wire.Bind` 将实现绑定到使用方声明的接口。需要把配置转换成控制器参数时，参考 [infrastructure.go](../pkg/wire/infrastructure.go) 的 `provideSystemController`，在装配层完成适配。
+
+[wire.go](../pkg/wire/wire.go) 的唯一 injector 按字段类型组装资源和 Container，新增 Controller 字段会成为生成图的依赖：
+
+```go
+func buildWithWire(ctx context.Context, cfg configs.Config, opts bootstrap.Options) (*Container, func(), error) {
+    panic(wire.Build(
+        AllProviders,
+        wire.Struct(new(bootstrap.Resources), "*"),
+        wire.FieldsOf(new(bootstrap.Options), "EnableExamples"),
+        wire.Struct(new(Container), "*"),
+    ))
+}
+```
+
+这段声明放在已有带 `wireinject` 标签的 wire.go，保留其 imports。`wire.Struct(..., "*")` 自动填充可注入字段；`cleanup`、`closeOnce` 通过 `wire:"-"` 排除，交由公共生命周期方法管理。完成字段和 provider 修改后生成并检查：
 
 ```powershell
 go generate ./pkg/wire
@@ -59,9 +97,36 @@ go tool wire diff ./pkg/wire
 go test ./pkg/wire ./pkg/router/... -count=1
 ```
 
-Wire 声明有 wireinject 标签，普通源码不导入 Wire DSL；不手改 wire_gen.go。默认 `-di manual`，可在同一入口用 `-di wire` 验证等价装配。两条路径共用校验、Prepare 和关闭顺序，不能只修改其中一条。
+普通构建使用已提交的 wire_gen.go，无须运行生成器；不要手改该文件。Wire 声明使用 `wireinject` 标签，业务代码不导入 Wire DSL。
 
-CLI 构造 Container 后才调用 `router.New(container)`；wire 不 import router，避免包循环。`bootstrap.Options` 只包含 EnableExamples、InitializeSchema、Settings。`cmd/example` 的开关用于教学，真实业务应在正式模型/路由列表中显式启用。
+可选 `wire.NewContainerManual(ctx, cfg, opts)` 对应 CLI 的 `-di manual`。在 [manual.go](../pkg/wire/manual.go) 的 `buildManual` 中按实际顺序增加普通构造调用，并将结果写入 `&Container{...}`：
+
+```go
+noteMapper, err := mapper.NewNoteMapperWithReader(cluster)
+if err != nil {
+    return nil, nil, err
+}
+noteService := impl.NewNoteService(noteMapper)
+noteController := controller.NewNoteController(noteService)
+```
+
+该摘录位于已有 buildManual 中，完整 Container 字面量与 cleanup 见源码。两条装配路径共用校验、Prepare 和关闭顺序；使用手写路径时同步构造和字段赋值，共享资源仍由容器统一释放。
+
+CLI 在 Container 完成 Prepare 后执行下面的路由步骤，错误按现有启动路径返回并关闭资源：
+
+```go
+engine, err := router.NewEngine(container)
+if err != nil {
+    return err
+}
+if err := router.New(engine, container); err != nil {
+    return err
+}
+```
+
+`NewEngine` 配置 Gin 引擎和通用 HTTP 处理链，`New` 只组织路由组并调用模块登记函数。模块签名为 `RegisterSystemRoutes(container, public, protected)`、`RegisterNoteRoutes(container, protected)` 和 `RegisterRealtimeRoutes(container, public, protected)`；完整可复制的 Note 模块见 [分层示例](LAYER_EXAMPLES.md#routes用原生-gin-声明路径与权限)。中央入口保留现有 `/api/v1` 分组，新业务模块在正式调用区登记，教学 Note/realtime 保留 `EnableExamples` 条件。
+
+wire 包不 import router。`bootstrap.Options` 只包含 EnableExamples、InitializeSchema、Settings；`cmd/example` 的开关用于教学，真实业务应在正式模型/路由列表中显式启用。
 
 ## 4. 事务如何传播
 
@@ -76,9 +141,9 @@ import (
     "context"
     "errors"
 
-    "heago-scaffold/pkg/serve/mapper"
-    "heago-scaffold/pkg/serve/service"
-    "heago-scaffold/pkg/serve/service/impl"
+    "healgo-scaffold/pkg/serve/mapper"
+    "healgo-scaffold/pkg/serve/service"
+    "healgo-scaffold/pkg/serve/service/impl"
     "gorm.io/gorm"
 )
 

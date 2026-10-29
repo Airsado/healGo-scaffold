@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"heago-scaffold/internal/stream"
+	"healgo-scaffold/internal/stream"
 
 	coder "github.com/coder/websocket"
 )

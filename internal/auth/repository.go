@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"heago-scaffold/internal/db"
+	"healgo-scaffold/internal/db"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

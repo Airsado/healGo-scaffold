@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/testutil"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/testutil"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	gormlogger "gorm.io/gorm/logger"

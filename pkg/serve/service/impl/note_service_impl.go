@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	model "heago-scaffold/internal/model/note"
-	"heago-scaffold/pkg/serve/service"
+	model "healgo-scaffold/internal/model/note"
+	"healgo-scaffold/pkg/serve/service"
 )
 
 // NoteServiceImpl 保存本次装配的存储依赖，不查找全局 DB 或 HTTP 请求对象

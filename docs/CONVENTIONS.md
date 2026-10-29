@@ -10,15 +10,15 @@
 | `configs` | YAML、校验、私有配置 | 连接和加密主密钥保留在文件 |
 | `internal/model/<资源>` | 表结构、约束、稳定错误 | 不查询、不迁移；在 get_all_models.go 集中登记 |
 | `internal/auth/settings/stream` 等 | 认证、配置与传输基础能力 | 不反向依赖 controller 或具体业务实现 |
-| `pkg/router/router.go` | 全局中间件、根路由、开关 | 接收已初始化 Container，不构造服务 |
-| `pkg/router/routes` | 资源路径、方法、权限与 handler | 不写请求绑定、业务规则和 SQL |
+| `pkg/router` | NewEngine 配置引擎；New 集中分组、模块登记与开关 | 接收已初始化 Container，不构造服务 |
+| `pkg/router/routes` | 原生 Gin 资源路径、方法、权限与 handler | 从 Container 选择已构造 Controller，不写请求绑定、业务规则和 SQL |
 | `pkg/serve/controller` | HTTP、身份、参数、状态与 VO | 依赖服务接口，不接收 DB |
 | `pkg/serve/controller/dto` | 请求 JSON 字段与形状校验 | 不接受 owner 等可信字段 |
 | `pkg/serve/service` | 用例接口、普通 Go 输入/结果、窄 mapper 接口 | 不导入 Gin/GORM/具体 mapper |
 | `pkg/serve/service/impl` | 业务校验、规则、用例实现 | 依赖契约，不依赖 HTTP 或 SQL |
 | `pkg/serve/mapper` | 参数化 SQL、owner、CAS、错误脱敏 | 注入 DB/tx，所有 I/O 接受 ctx |
 | `pkg/vo` | 明确公开的响应字段与转换 | 不嵌入敏感模型 |
-| `pkg/wire` | Container、手写装配、集中 provider sets、可选生成 | 不 import router，不作全局服务定位器 |
+| `pkg/wire` | Container、默认 Wire 图、分层 provider sets、可选手写装配 | 不 import router，不作全局服务定位器 |
 | `pkg/bootstrap` | 模型/种子顺序、Runtime、关闭 | 不重复组装业务对象 |
 
 运行时调用方向为 routes → controller → service 接口 → impl → mapper → model/DB；service 使用自己声明的 NoteMapper，组合根注入具体实现。根 `main.go` 调用 `cmd.Run` 处理进程启动，`service` 是用例契约；数据访问统一命名 mapper，不再叠加同义 repository/dao。
@@ -32,6 +32,7 @@
 ## 3. HTTP、DTO、VO 与身份
 
 - `/api/v1` 前缀由 router 总入口提供，资源 routes 声明相对路径，避免覆盖 `/auth`、`/system`。
+- `router.NewEngine(container)` 先配置引擎、中间件和探活，`router.New(engine, container)` 再组织公共/受保护分组并调用模块 `Register...`。模块接收 Container 和对应的 `*gin.RouterGroup`，使用 Gin 原生路由声明；Container 到路由层为止，Controller/Service 仍显式注入窄依赖。
 - 登录校验与操作权限分别声明。owner 来自 `middleware.Principal(c)`，不能从请求体提交；有读权限也不能读取其他 owner 的资源。
 - DTO 检查 HTTP 格式、类型、必填和未知字段；impl 独立校验业务不变量，保护任务/命令行等其他入口。
 - 表模型不直接序列化。VO 只列公开字段，ID 使用字符串，revision 为数字，分页空集合为 `[]`。
@@ -53,7 +54,9 @@
 
 ## 5. 装配与生命周期
 
-默认 `wire.NewContainer` 在 manual.go 手写构造；可选 `NewContainerWithWire` 使用唯一生成图。providers.go 按 Infrastructure/Mapper/Service/Controller/All 集中声明。新增依赖同步 Container、手写路径与 provider sets，执行生成和差异检查，不手改 wire_gen.go。
+默认 `wire.NewContainer(ctx, cfg, opts)` 使用唯一 Wire 生成图，CLI 默认 `-di wire`；可选 `NewContainerManual` 在 manual.go 手写构造，对应 `-di manual`。providers.go 按 Infrastructure/Mapper/Service/Controller/All 集中声明构造函数和接口绑定。
+
+injector 使用 `wire.Struct(new(bootstrap.Resources), "*")` 和 `wire.Struct(new(Container), "*")` 按类型填充字段；`cleanup`、`closeOnce` 等生命周期字段用 `wire:"-"` 排除。新增资源以 Container 的 Controller 字段、分层 provider/bind、模块路由、中央登记调用、集中模型登记为接入点，执行 `go generate ./pkg/wire` 和 Wire diff；手写路径同步普通构造调用与 Container 字面量。生成文件不手改，完整示例见 [扩展手册](EXTENDING.md#3-默认-wire-注入与可选手写装配)。
 
 两种路径都完成 Prepare 后才创建路由；Prepare 集中检查/初始化模型，再补缺失账号与配置。构造失败逆序清理已创建资源。共享资源由 Container 持有，业务层不能关闭注入的 DB/Auth/Streams。
 

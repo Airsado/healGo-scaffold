@@ -4,7 +4,7 @@
 
 ## 内容
 
-- [wire](wire/README.md)：Container、默认手写注入、集中 provider sets 与可选 Wire。
+- [wire](wire/README.md)：Container、集中 provider sets、默认 Wire 与可选手写注入。
 - [bootstrap](bootstrap/README.md)：模型准备、种子、HTTP 生命周期和共享资源关闭。
 - [router](router/README.md)：总路由与具体 routes。
 - [serve](serve/README.md)：controller、请求 DTO、service/impl、mapper。

@@ -3,8 +3,8 @@ package middleware
 import (
 	"errors"
 
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/response"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/response"
 
 	"github.com/gin-gonic/gin"
 )

@@ -18,11 +18,11 @@ import (
 	"net/url"
 	"strconv"
 
-	"heago-scaffold/internal/middleware"
-	"heago-scaffold/internal/response"
-	"heago-scaffold/pkg/serve/controller/dto"
-	"heago-scaffold/pkg/serve/service"
-	"heago-scaffold/pkg/vo"
+	"healgo-scaffold/internal/middleware"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/pkg/serve/controller/dto"
+	"healgo-scaffold/pkg/serve/service"
+	"healgo-scaffold/pkg/vo"
 
 	"github.com/gin-gonic/gin"
 )

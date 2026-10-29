@@ -10,6 +10,11 @@ import (
 
 const ciphertextVersion byte = 1
 
+// ciphertextV1AADPrefix 是 v1 密文格式的一部分，不是当前项目显示名
+// 数据库中已有密文的认证标签绑定这些字节，品牌改名不能修改该值
+// 如需改变命名域，必须另设格式版本并显式迁移已有密文
+const ciphertextV1AADPrefix = "heago-scaffold/settings:v1\x00"
+
 // The version byte leaves room for a future explicit key/cipher migration.
 // It does not implement automatic rotation: changing the master file before
 // re-encrypting existing rows must fail closed rather than discard credentials.
@@ -30,7 +35,7 @@ func newCipher(key string) (cipher.AEAD, error) {
 func additionalData(key string) []byte {
 	// Binding ciphertext to both its purpose and setting key prevents a valid
 	// encrypted value being copied into another row without detection.
-	return []byte("heago-scaffold/settings:v1\x00" + key)
+	return []byte(ciphertextV1AADPrefix + key)
 }
 
 func (s *Service) seal(key string, value []byte) ([]byte, error) {

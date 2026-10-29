@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/pkg/bootstrap"
-	"heago-scaffold/pkg/router"
-	"heago-scaffold/pkg/wire"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/pkg/bootstrap"
+	"healgo-scaffold/pkg/router"
+	"healgo-scaffold/pkg/wire"
 )
 
 // Run 是全部可执行入口共享的启动流程，enableExamples 决定是否登记演示表和路由
@@ -32,7 +32,7 @@ func Run(args []string, enableExamples bool) error {
 		command, args = args[0], args[1:]
 	}
 	if command != "serve" && command != "migrate" && command != "healthcheck" {
-		return errors.New("usage: server [serve|migrate|healthcheck] -config <file> [-di manual|wire] [-addr host:port]")
+		return errors.New("usage: server [serve|migrate|healthcheck] -config <file> [-di wire|manual] [-addr host:port]")
 	}
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	// 标准 flag 可能把误输入的参数原文打印出来，因此使用静态用法提示
@@ -40,10 +40,10 @@ func Run(args []string, enableExamples bool) error {
 	flags.SetOutput(io.Discard)
 	path := flags.String("config", "configs/config.local.yaml", "bootstrap YAML path")
 	// 切换注入方式只改变对象组装，配置、模型初始化和 HTTP 协议保持相同
-	di := flags.String("di", "manual", "dependency injection: manual or wire")
+	di := flags.String("di", "wire", "dependency injection: wire or manual")
 	addr := flags.String("addr", "", "optional HTTP address override")
 	if flags.Parse(args) != nil || flags.NArg() != 0 || (*di != "manual" && *di != "wire") {
-		return errors.New("usage: server [serve|migrate|healthcheck] -config <file> [-di manual|wire] [-addr host:port]")
+		return errors.New("usage: server [serve|migrate|healthcheck] -config <file> [-di wire|manual] [-addr host:port]")
 	}
 	cfg, err := configs.Load(*path)
 	if err != nil {
@@ -65,11 +65,11 @@ func Run(args []string, enableExamples bool) error {
 	// 注销信号监听放在 defer，退出时归还 NotifyContext 持有的资源
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	// 默认手写注入；需要 Google Wire 时可在相同启动流程中切换
+	// 默认使用 Wire 生成的显式装配；手写入口可用来学习或手动维护依赖
 	// 容器构造成功意味着模型和种子已准备好，路由只负责协议层登记
 	constructor := wire.NewContainer
-	if *di == "wire" {
-		constructor = wire.NewContainerWithWire
+	if *di == "manual" {
+		constructor = wire.NewContainerManual
 	}
 	container, err := constructor(ctx, cfg, bootstrap.Options{InitializeSchema: command == "migrate", EnableExamples: enableExamples})
 	if err != nil {
@@ -78,8 +78,12 @@ func Run(args []string, enableExamples bool) error {
 	// 任何后续启动错误都能关闭容器；成功监听后 Runtime 会先排空再关闭
 	defer container.Close()
 	// 路由登记失败也属于启动失败，此时尚未监听，直接关闭已构造资源即可
-	engine, err := router.New(container)
+	engine, err := router.NewEngine(container)
 	if err != nil {
+		return err
+	}
+	// 引擎初始化与模块登记分开，业务路由统一从 router.New 显式接入
+	if err := router.New(engine, container); err != nil {
 		return err
 	}
 	runtime := bootstrap.NewRuntime(bootstrap.Components{Config: container.Config, Resources: container.Resources, Router: engine}, container.Close)

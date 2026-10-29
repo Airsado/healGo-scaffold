@@ -14,7 +14,7 @@
 | mapper | [SQL 写法](../pkg/serve/mapper/README.md) | [note_mapper.go](../pkg/serve/mapper/note_mapper.go) |
 | model | [表结构](../internal/model/note/README.md) | [note.go](../internal/model/note/note.go)、[集中登记](../internal/model/get_all_models.go) |
 | VO | [响应字段](../pkg/vo/README.md) | [note_vo.go](../pkg/vo/note_vo.go) |
-| 装配 | [Container 与 provider sets](../pkg/wire/README.md) | [manual.go](../pkg/wire/manual.go)、[providers.go](../pkg/wire/providers.go) |
+| 装配 | [Container 与 provider sets](../pkg/wire/README.md) | [container.go](../pkg/wire/container.go)、[providers.go](../pkg/wire/providers.go)、[wire.go](../pkg/wire/wire.go) |
 
 `service` 声明接口和普通 Go 输入/结果，`service/impl` 实现业务；根 `main.go` 调用 `cmd.Run` 处理进程启动。`mapper` 处理数据访问，不再并列创建同义 repository/dao。
 
@@ -37,6 +37,55 @@ flowchart LR
 ```
 
 请求须先通过 Bearer 和写权限。路由权限控制“能不能创建”，owner 条件控制“属于谁”；管理员的 `*` 权限也不会绕过数据归属。
+
+### Routes：用原生 Gin 声明路径与权限
+
+下面是 [note_routes.go](../pkg/router/routes/note_routes.go) 的完整路由模块，可作为同层资源的写法参考：
+
+```go
+package routes
+
+import (
+    "healgo-scaffold/internal/middleware"
+    "healgo-scaffold/pkg/wire"
+
+    "github.com/gin-gonic/gin"
+)
+
+const NoteReadPermission = "example:notes:read"
+const NoteWritePermission = "example:notes:write"
+
+// RegisterNoteRoutes 显式声明 HTTP 方法、权限和控制器方法之间的关系
+// protected 已验证身份；每个操作仍须声明权限，读取权限不隐含写入权限
+func RegisterNoteRoutes(container *wire.Container, protected *gin.RouterGroup) {
+    notes := container.NoteController
+    group := protected.Group("/examples/notes")
+    // 权限值来自代码声明，不允许调用方通过请求参数选择要检查的权限
+    // 缺少身份由 protected 拒绝，身份成立但没有权限由 Permission 返回 403
+    read := middleware.Permission(container.Auth, NoteReadPermission)
+    write := middleware.Permission(container.Auth, NoteWritePermission)
+    // 所有数据操作仍将 Principal.ID 传到服务与查询；路由权限不替代 owner 隔离
+    group.POST("", write, notes.Create)
+    group.GET("", read, notes.List)
+    group.GET("/:id", read, notes.Get)
+    group.PUT("/:id", write, notes.Update)
+    group.DELETE("/:id", write, notes.Delete)
+}
+```
+
+中央 [router.go](../pkg/router/router.go) 的 `New(engine, container)` 只创建公共、受保护分组并调用模块登记函数。以下是已有登记区的结构，位于该函数内部：
+
+```go
+public := engine.Group("/api/v1")
+protected := engine.Group("/api/v1", middleware.Authenticate(container.Auth))
+routes.RegisterSystemRoutes(container, public, protected)
+if container.EnableExamples {
+    routes.RegisterNoteRoutes(container, protected)
+    routes.RegisterRealtimeRoutes(container, public, protected)
+}
+```
+
+`router.NewEngine(container)` 先建立带通用中间件、健康检查的引擎，然后 `router.New(engine, container)` 登记模块。新增资源继续使用 Gin 的 `Group/GET/POST/PUT/DELETE`，在中央入口增加对应 `Register...` 调用。Container 仅到达装配和路由层；模块从容器选择已构造的 Controller，Controller 与 Service 继续使用各自明确的窄依赖。
 
 ### Controller：只把 HTTP 翻译成用例
 
@@ -148,28 +197,58 @@ func (m *NoteMapper) Create(ctx context.Context, note model.Note) (model.Note, e
 
 [vo.FromNoteModel](../pkg/vo/note_vo.go) 显式复制 ID、slug、标题、正文、revision 和时间，不公开 owner。ID 用 JSON 字符串避免浏览器大整数舍入，分页空 Items 保持 `[]`。请求 DTO、服务输入、表模型和响应 VO 有不同的职责，不能全部复用表实体。
 
-## 3. 默认手写注入，可以直接看懂构造顺序
+## 3. 默认 Wire 注入，按层登记构造函数
 
-[manual.go](../pkg/wire/manual.go) 的真实构造片段：
+默认 `wire.NewContainer(ctx, cfg, opts)` 调用生成的 `buildWithWire`。在 [providers.go](../pkg/wire/providers.go) 按层登记已有的 Note 构造函数和接口绑定：
+
+```go
+var MapperProviders = wire.NewSet(
+    mapper.NewNoteMapperWithReader,
+    wire.Bind(new(service.NoteMapper), new(*mapper.NoteMapper)),
+)
+
+var ServiceProviders = wire.NewSet(
+    impl.NewNoteService,
+)
+
+var ControllerProviders = wire.NewSet(
+    controller.NewNoteController,
+    provideSystemController,
+    provideRealtimeController,
+)
+```
+
+这些声明使用 providers.go 已有的 imports 和 `wireinject` 标签。`wire.Bind` 将具体 Mapper 绑定到 Service 声明的接口；`impl.NewNoteService` 已返回 `service.NoteService`，Controller 的参数仍是该接口。
+
+在 [Container](../pkg/wire/container.go) 为路由保留 `NoteController *controller.NoteController` 字段，[wire.go](../pkg/wire/wire.go) 使用字段装配：
+
+```go
+panic(wire.Build(
+    AllProviders,
+    wire.Struct(new(bootstrap.Resources), "*"),
+    wire.FieldsOf(new(bootstrap.Options), "EnableExamples"),
+    wire.Struct(new(Container), "*"),
+))
+```
+
+这是已有 injector 函数体。Wire 依据字段类型推导对象；生命周期字段 `cleanup`、`closeOnce` 标记 `wire:"-"`，由公共收尾管理。完整字段和 injector 签名见 [扩展手册](EXTENDING.md#3-默认-wire-注入与可选手写装配)。增加 Controller 字段及按层 provider 后执行 `go generate ./pkg/wire`，不手改 wire_gen.go。
+
+`NewContainer` 完成资源与对象构造，再统一 Prepare；构造函数不能查表、建表、启动后台任务。Container 已完成模型和种子后，CLI 调用 `router.NewEngine(container)`，再调用 `router.New(engine, container)`，最后创建 Runtime。默认入口也构造示例对象，但只有 `EnableExamples` 开启时才登记示例表与路由。
+
+可选手写入口为 `NewContainerManual(ctx, cfg, opts)`。在 [manual.go](../pkg/wire/manual.go) 的 `buildManual` 中可直接看到相同的构造关系，新增依赖时按顺序构造，再写入该文件的 Container 字面量：
 
 ```go
 noteMapper, err := mapper.NewNoteMapperWithReader(cluster)
-if err != nil { return nil, nil, err }
+if err != nil {
+    return nil, nil, err
+}
 noteService := impl.NewNoteService(noteMapper)
 noteController := controller.NewNoteController(noteService)
 ```
 
-`NewContainer(ctx, cfg, opts)` 完成资源与对象构造，再统一 Prepare；构造函数不能查表、建表、启动后台任务。Container 已完成模型和种子后，CLI 调用 `router.New(container)`，再创建 Runtime。默认入口也可构造示例对象，但只有 `EnableExamples` 开启时才登记示例表与路由。
-
 `cluster.Primary` 是普通主库连接。`NewNoteMapperWithReader` 仅让 List 显式通过 Cluster.Read，其他方法固定主库；没有副本时 List 也走主库。事务内使用上面的 `NewNoteMapper(tx)`，所有操作都绑定该 tx。新增资源如何选择一致性和连接见 [数据库手册](DATABASE.md)。
 
-可选 `NewContainerWithWire` 复用相同构造函数与 Prepare；所有 provider sets 集中在 [providers.go](../pkg/wire/providers.go)：Infrastructure、Mapper、Service、Controller、All。MapperProviders 中的实际接口绑定为：
-
-```go
-wire.Bind(new(service.NoteMapper), new(*mapper.NoteMapper))
-```
-
-只有一张 Wire 图。默认 `-di manual`，`-di wire` 切换生成装配；新增依赖时同步两条路径，生成文件不用手改。
+默认 CLI 为 `-di wire`，`-di manual` 选择手写路径。两者使用相同构造函数与 Prepare，只有一张 Wire 图。
 
 ## 4. 新增资源时的最短顺序
 
@@ -177,8 +256,8 @@ wire.Bind(new(service.NoteMapper), new(*mapper.NoteMapper))
 2. 在 `controller/dto/<资源>_dto.go` 和 `pkg/vo/<资源>_vo.go` 明确允许输入和公开输出。
 3. 在 `service/<资源>_service.go` 声明用例、输入/结果、所需 mapper 接口，在 `service/impl/<资源>_service_impl.go` 实现规则。
 4. 在 `mapper/<资源>_mapper.go` 实现持久化；在 controller 适配身份、ctx、错误与 VO。
-5. 在 `routes/<资源>_routes.go` 声明路径/权限；在 Container、manual.go、providers.go 和 router 总入口接上对象与路由。
-6. 使用同样配置 migrate、serve；验证主流程、401/403、归属、非法输入、唯一约束和版本冲突。
+5. 在 Container 增加 Controller 字段，在各层 provider 登记构造函数与接口绑定；在 `routes/<资源>_routes.go` 声明原生 Gin 路径/权限，再由中央入口调用模块登记函数。
+6. 执行 `go generate ./pkg/wire`；使用手写路径时同步 manual.go 的构造与 Container 字面量。使用同样配置 migrate、serve，验证主流程、401/403、归属、非法输入、唯一约束和版本冲突。
 
 事务共享 tx、具体接入点和可编辑配置见 [扩展手册](EXTENDING.md)。当前场景能演示、权限和数据边界通过后即可结束，不用先增加缓存或消息队列。
 
@@ -188,8 +267,8 @@ wire.Bind(new(service.NoteMapper), new(*mapper.NoteMapper))
 
 ```powershell
 go run ./cmd/example migrate -config configs/config.local.yaml
-go run ./cmd/example serve -config configs/config.local.yaml -di manual
-# 停止后也可用 -di wire 启动，验证相同 HTTP 行为
+go run ./cmd/example serve -config configs/config.local.yaml -di wire
+# 停止后也可用 -di manual 启动，验证相同 HTTP 行为
 ```
 
 ```powershell
@@ -197,7 +276,7 @@ go test ./pkg/serve/service/impl ./internal/model/note -count=1
 go generate ./pkg/wire
 go tool wire diff ./pkg/wire
 go test ./pkg/serve/mapper ./pkg/router/... ./pkg/wire -count=1
-go build -o .build/heago-example ./cmd/example
+go build -o .build/healgo-example ./cmd/example
 ```
 
 impl/model 单元测试不需要数据库；mapper、HTTP 和 Container 集成测试使用 `HEAGO_TEST_DATABASE_URL` 或 `HEAGO_TEST_MYSQL_DSN`，两个驱动分别运行，未设置时的 skip 不能算真实数据库验证。完整登录、CRUD、409 和删除脚本见 [开发手册](DEVELOPMENT.md)。

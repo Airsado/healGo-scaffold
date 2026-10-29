@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/db"
-	"heago-scaffold/internal/model"
-	"heago-scaffold/internal/settings"
-	"heago-scaffold/internal/stream"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/db"
+	"healgo-scaffold/internal/model"
+	"healgo-scaffold/internal/settings"
+	"healgo-scaffold/internal/stream"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

@@ -1,3 +1,4 @@
+# Keep this deployment ID stable so the project-name correction reuses existing data volumes
 name: heago-scaffold
 
 services:
@@ -20,7 +21,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: heago-scaffold:local
+    image: healgo-scaffold:local
     build: .
     command: ["migrate", "-config", "/app/configs/config.yaml"]
     depends_on:
@@ -39,7 +40,7 @@ services:
     restart: "no"
 
   app:
-    image: heago-scaffold:local
+    image: healgo-scaffold:local
     build: .
     command: ["serve", "-config", "/app/configs/config.yaml"]
     depends_on:

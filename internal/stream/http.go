@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"heago-scaffold/internal/response"
+	"healgo-scaffold/internal/response"
 )
 
 // 私有键类型避免与业务设置的字符串键冲突，也避免无意覆盖原始取消信号

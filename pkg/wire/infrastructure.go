@@ -7,16 +7,14 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/db"
-	"heago-scaffold/internal/logger"
-	"heago-scaffold/internal/settings"
-	"heago-scaffold/internal/stream"
-	"heago-scaffold/pkg/bootstrap"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/serve/mapper"
-	"heago-scaffold/pkg/serve/service"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/db"
+	"healgo-scaffold/internal/logger"
+	"healgo-scaffold/internal/settings"
+	"healgo-scaffold/internal/stream"
+	"healgo-scaffold/pkg/bootstrap"
+	"healgo-scaffold/pkg/serve/controller"
 )
 
 // 独立类型保证外部资源依赖已经校验过的配置，手写和生成路径复用相同规则
@@ -101,17 +99,4 @@ func provideSystemController(authentication *auth.Service, configuration *settin
 // 复制切片避免配置调用方后续修改同一底层数组，悄悄改变已构造对象
 func provideRealtimeController(authentication *auth.Service, streams *stream.Manager, cfg validatedConfig) (*controller.RealtimeController, error) {
 	return controller.NewRealtimeController(authentication, streams, append([]string(nil), cfg.Security.CORSOrigins...))
-}
-
-// 唯一的容器构造器只是收集依赖，不注册路由、不建表，也不启动后台任务
-// 显式列出参数便于 Wire 检查缺失依赖，也便于审查手写入口是否接线完整
-// 不提供按字符串取服务的方法，业务依赖应直接出现在各自构造函数签名中
-func newContainer(cfg validatedConfig, opts bootstrap.Options, cluster *db.Cluster, database *gorm.DB, log *slog.Logger,
-	authentication *auth.Service, configuration *settings.Service, streams *stream.Manager,
-	noteMapper *mapper.NoteMapper, noteService service.NoteService, system *controller.SystemController,
-	notes *controller.NoteController, realtime *controller.RealtimeController) *Container {
-	return &Container{Config: cfg.Config, EnableExamples: opts.EnableExamples,
-		Resources:  bootstrap.Resources{Database: cluster, DB: database, Logger: log, Auth: authentication, Settings: configuration, Streams: streams},
-		NoteMapper: noteMapper, NoteService: noteService, SystemController: system,
-		NoteController: notes, RealtimeController: realtime}
 }

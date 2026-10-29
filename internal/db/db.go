@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"heago-scaffold/configs"
+	"healgo-scaffold/configs"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	gormmysql "gorm.io/driver/mysql"

@@ -3,7 +3,7 @@ package settings
 import (
 	"testing"
 
-	"heago-scaffold/internal/testutil"
+	"healgo-scaffold/internal/testutil"
 
 	"gorm.io/gorm"
 )

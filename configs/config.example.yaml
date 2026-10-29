@@ -2,7 +2,7 @@
 # This is deployment/bootstrap configuration. Editable runtime settings belong in the database.
 # Replace all three placeholders; generate the key with: openssl rand -base64 32
 app:
-  name: heaGo-scaffold
+  name: healGo-scaffold
   environment: development
 
 http:

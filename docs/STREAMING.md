@@ -225,7 +225,7 @@ go generate ./pkg/wire
 go tool wire diff ./pkg/wire
 go test ./internal/stream/... ./pkg/serve/controller ./pkg/router/routes -count=1
 go vet ./...
-go build -o .build/heago-example ./cmd/example
+go build -o .build/healgo-example ./cmd/example
 ```
 
 集成测试使用 `HEAGO_TEST_DATABASE_URL`（PostgreSQL）或 `HEAGO_TEST_MYSQL_DSN`（MySQL），两个驱动分别运行；设置方法见[开发手册](DEVELOPMENT.md#5-修改之后怎么验证)。测试使用真实 HTTP 和随机 schema/database，验证 ticket 单次/到期/容量/并发、401/403、浏览器来源、WS echo、底层会话注销及 SSE 前两帧跨普通请求超时。测试自己的 ticket 和 bearer 也不得进入访问日志。

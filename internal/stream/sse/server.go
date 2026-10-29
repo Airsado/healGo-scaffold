@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"heago-scaffold/internal/stream"
+	"healgo-scaffold/internal/stream"
 )
 
 // Options bound each stream independently; zero values select conservative defaults.

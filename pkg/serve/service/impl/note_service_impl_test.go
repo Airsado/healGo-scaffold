@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	model "heago-scaffold/internal/model/note"
-	"heago-scaffold/pkg/serve/service"
+	model "healgo-scaffold/internal/model/note"
+	"healgo-scaffold/pkg/serve/service"
 )
 
 type memoryMapper struct {

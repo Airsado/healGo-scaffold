@@ -1,4 +1,4 @@
-module heago-scaffold
+module healgo-scaffold
 
 go 1.26.10
 

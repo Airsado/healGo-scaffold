@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"heago-scaffold/internal/response"
-	"heago-scaffold/internal/stream"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/internal/stream"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

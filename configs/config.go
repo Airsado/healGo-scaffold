@@ -106,7 +106,7 @@ func (c Security) GoString() string  { return c.String() }
 // AutoMigrate defaults to false: schema changes require an explicit operator decision.
 func defaults() Config {
 	return Config{
-		App: App{Name: "heaGo-scaffold", Environment: "development"},
+		App: App{Name: "healGo-scaffold", Environment: "development"},
 		HTTP: HTTP{Addr: ":8080", ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 			WriteTimeout: 35 * time.Second, IdleTimeout: 60 * time.Second, ShutdownTimeout: 10 * time.Second,
 			RequestTimeout: 30 * time.Second},

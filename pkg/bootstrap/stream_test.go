@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/middleware"
-	"heago-scaffold/internal/stream"
-	"heago-scaffold/internal/stream/sse"
-	streamws "heago-scaffold/internal/stream/websocket"
-	"heago-scaffold/pkg/bootstrap"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/middleware"
+	"healgo-scaffold/internal/stream"
+	"healgo-scaffold/internal/stream/sse"
+	streamws "healgo-scaffold/internal/stream/websocket"
+	"healgo-scaffold/pkg/bootstrap"
 
 	clientws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"

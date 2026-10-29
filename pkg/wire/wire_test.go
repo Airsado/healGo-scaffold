@@ -17,10 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/db"
-	"heago-scaffold/internal/testutil"
-	"heago-scaffold/pkg/bootstrap"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/db"
+	"healgo-scaffold/internal/testutil"
+	"healgo-scaffold/pkg/bootstrap"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/postgres"
@@ -266,7 +266,7 @@ func TestContainerAndRuntimeCleanupAreIdempotent(t *testing.T) {
 }
 
 func TestInvalidGraphInputs(t *testing.T) {
-	for name, constructor := range map[string]func(context.Context, configs.Config, bootstrap.Options) (*Container, error){"manual": NewContainer, "wire": NewContainerWithWire} {
+	for name, constructor := range map[string]func(context.Context, configs.Config, bootstrap.Options) (*Container, error){"manual": NewContainerManual, "wire": NewContainer} {
 		t.Run(name, func(t *testing.T) {
 			if c, err := constructor(context.Background(), configs.Config{}, bootstrap.Options{}); err == nil || c != nil {
 				t.Fatal("invalid config accepted")

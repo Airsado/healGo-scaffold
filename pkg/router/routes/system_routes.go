@@ -3,29 +3,31 @@
 package routes
 
 import (
-	"heago-scaffold/internal/middleware"
-	"heago-scaffold/pkg/serve/controller"
+	"healgo-scaffold/internal/middleware"
+	"healgo-scaffold/pkg/wire"
 
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterSystemRoutes 接收已构造的控制器和登录限流中间件
-// loginBudget 保持 gin.HandlerFunc 类型，在 bcrypt 校验之前限制登录请求
-func RegisterSystemRoutes(public, protected *gin.RouterGroup, system *controller.SystemController, loginBudget gin.HandlerFunc) {
+// RegisterSystemRoutes 从已构造的容器取系统控制器，公开与保护组由中央入口提供
+// 登录限流闭包只在登记时创建一次，在 bcrypt 校验之前限制尝试次数
+func RegisterSystemRoutes(container *wire.Container, public, protected *gin.RouterGroup) {
+	system := container.SystemController
+	loginBudget := middleware.LoginBudget(container.Config.Auth.LoginAttemptsPerMinute)
 	public.POST("/auth/login", loginBudget, system.Login)
 	protected.GET("/auth/me", system.Me)
 	protected.POST("/auth/logout", system.Logout)
 	protected.PUT("/auth/password", system.Password)
 	// 登录保护只证明身份，系统管理操作仍分别声明权限
 	// 权限服务由容器注入，路由不读取请求字段来决定需要检查的权限
-	protected.GET("/system/settings", middleware.Permission(system.Auth, "system:settings:read"), system.ListSettings)
-	protected.GET("/system/settings/:key", middleware.Permission(system.Auth, "system:settings:read"), system.GetSetting)
-	protected.PUT("/system/settings/:key", middleware.Permission(system.Auth, "system:settings:write"), system.UpdateSetting)
-	protected.GET("/system/setting-audits", middleware.Permission(system.Auth, "system:settings:audit"), system.Audits)
-	protected.GET("/system/users", middleware.Permission(system.Auth, "system:users:read"), system.Users)
-	protected.POST("/system/users", middleware.Permission(system.Auth, "system:users:write"), system.CreateUser)
-	protected.PUT("/system/users/:id/roles", middleware.Permission(system.Auth, "system:users:write"), system.UserRoles)
-	protected.PUT("/system/users/:id/enabled", middleware.Permission(system.Auth, "system:users:write"), system.UserEnabled)
-	protected.GET("/system/roles", middleware.Permission(system.Auth, "system:roles:read"), system.Roles)
-	protected.PUT("/system/roles/:name", middleware.Permission(system.Auth, "system:roles:write"), system.PutRole)
+	protected.GET("/system/settings", middleware.Permission(container.Auth, "system:settings:read"), system.ListSettings)
+	protected.GET("/system/settings/:key", middleware.Permission(container.Auth, "system:settings:read"), system.GetSetting)
+	protected.PUT("/system/settings/:key", middleware.Permission(container.Auth, "system:settings:write"), system.UpdateSetting)
+	protected.GET("/system/setting-audits", middleware.Permission(container.Auth, "system:settings:audit"), system.Audits)
+	protected.GET("/system/users", middleware.Permission(container.Auth, "system:users:read"), system.Users)
+	protected.POST("/system/users", middleware.Permission(container.Auth, "system:users:write"), system.CreateUser)
+	protected.PUT("/system/users/:id/roles", middleware.Permission(container.Auth, "system:users:write"), system.UserRoles)
+	protected.PUT("/system/users/:id/enabled", middleware.Permission(container.Auth, "system:users:write"), system.UserEnabled)
+	protected.GET("/system/roles", middleware.Permission(container.Auth, "system:roles:read"), system.Roles)
+	protected.PUT("/system/roles/:name", middleware.Permission(container.Auth, "system:roles:write"), system.PutRole)
 }

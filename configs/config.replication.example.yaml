@@ -1,7 +1,7 @@
 # One primary and at most one replica. Configure actual database replication separately.
 # Replace every placeholder and use a database-enforced read-only account on the replica.
 app:
-  name: heaGo-scaffold
+  name: healGo-scaffold
   environment: development
 
 http:

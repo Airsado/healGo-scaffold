@@ -7,11 +7,11 @@ import (
 	"net/url"
 	"time"
 
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/response"
-	"heago-scaffold/internal/stream"
-	"heago-scaffold/internal/stream/sse"
-	streamws "heago-scaffold/internal/stream/websocket"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/internal/stream"
+	"healgo-scaffold/internal/stream/sse"
+	streamws "healgo-scaffold/internal/stream/websocket"
 
 	"github.com/gin-gonic/gin"
 )

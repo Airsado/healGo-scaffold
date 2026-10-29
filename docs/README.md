@@ -9,7 +9,7 @@
 1. [LAYER_EXAMPLES.md](LAYER_EXAMPLES.md)：先看真实代码与分层写法。
 2. [DEVELOPMENT.md](DEVELOPMENT.md)：启动示例、登录、CRUD、版本冲突与源码断点。
 3. [CONVENTIONS.md](CONVENTIONS.md)：固定目录、命名、依赖、错误、事务和完成标准。
-4. [EXTENDING.md](EXTENDING.md)：新增一个资源、手写/可选 Wire 注入、模型及路由登记、事务与配置接入。
+4. [EXTENDING.md](EXTENDING.md)：新增一个资源、默认 Wire/可选手写注入、模型及路由登记、事务与配置接入。
 5. [依赖注入说明](../pkg/wire/README.md)：Container、集中 provider sets、生成与资源清理。
 6. [API.md](API.md)：系统 API、统一响应、认证、角色权限和持久化配置。
 7. [STREAMING.md](STREAMING.md)：WebSocket/SSE、浏览器 ticket、心跳、代理和停机。

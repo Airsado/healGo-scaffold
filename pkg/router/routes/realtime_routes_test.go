@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"heago-scaffold/internal/testutil"
+	"healgo-scaffold/internal/testutil"
 	"io"
 	"log/slog"
 	"net/http"
@@ -17,16 +17,16 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/middleware"
-	"heago-scaffold/internal/settings"
-	"heago-scaffold/internal/stream"
-	"heago-scaffold/pkg/bootstrap"
-	frameworkrouter "heago-scaffold/pkg/router"
-	"heago-scaffold/pkg/router/routes"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/wire"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/middleware"
+	"healgo-scaffold/internal/settings"
+	"healgo-scaffold/internal/stream"
+	"healgo-scaffold/pkg/bootstrap"
+	frameworkrouter "healgo-scaffold/pkg/router"
+	"healgo-scaffold/pkg/router/routes"
+	"healgo-scaffold/pkg/serve/controller"
+	"healgo-scaffold/pkg/wire"
 
 	"github.com/coder/websocket"
 	"gorm.io/gorm"
@@ -115,16 +115,20 @@ func newHTTPFixture(t *testing.T) *httpFixture {
 		Auth:     configs.Auth{SessionTTL: time.Hour, LoginAttemptsPerMinute: 100},
 		Security: configs.Security{MaxBodyBytes: 1024, CORSOrigins: origins}}
 	container := &wire.Container{Config: cfg, Resources: resources,
-		SystemController: controller.NewSystemController(authentication, configuration, int64(cfg.Auth.SessionTTL/time.Second))}
-	engine, err := frameworkrouter.New(container)
+		SystemController:   controller.NewSystemController(authentication, configuration, int64(cfg.Auth.SessionTTL/time.Second)),
+		RealtimeController: realtime}
+	engine, err := frameworkrouter.NewEngine(container)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := frameworkrouter.New(engine, container); err != nil {
 		t.Fatal(err)
 	}
 	// Register the concrete route functions after composing dependencies.
 	// External routes_test avoids a controller → router test import cycle.
 	public := engine.Group("/api/v1")
 	protected := engine.Group("/api/v1", middleware.Authenticate(authentication))
-	routes.RegisterRealtimeRoutes(public, protected, realtime, authentication)
+	routes.RegisterRealtimeRoutes(container, public, protected)
 	server := httptest.NewServer(engine)
 	t.Cleanup(server.Close)
 	return &httpFixture{server: server, auth: authentication, manager: manager, token: token, denied: denied, logs: logs}

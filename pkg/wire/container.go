@@ -1,4 +1,4 @@
-// Package wire 是依赖装配的唯一入口默认手写，亦可选择 Google Wire 生成
+// Package wire 是依赖装配的唯一入口，默认 Google Wire，亦可选择手写构造
 // Container 只在启动/路由层传递，Controller 和 Service 使用明确的构造参数
 package wire
 
@@ -6,11 +6,11 @@ import (
 	"context"
 	"sync"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/pkg/bootstrap"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/serve/mapper"
-	"heago-scaffold/pkg/serve/service"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/pkg/bootstrap"
+	"healgo-scaffold/pkg/serve/controller"
+	"healgo-scaffold/pkg/serve/mapper"
+	"healgo-scaffold/pkg/serve/service"
 )
 
 type Container struct {
@@ -25,13 +25,14 @@ type Container struct {
 	NoteController     *controller.NoteController
 	RealtimeController *controller.RealtimeController
 	// 清理函数由选中的注入路径提供；容器只负责保证它执行一次
-	cleanup   func()
-	closeOnce sync.Once
+	// Wire 只装配业务依赖；生命周期字段由 finish 和 Close 管理
+	cleanup   func()    `wire:"-"`
+	closeOnce sync.Once `wire:"-"`
 }
 
-// NewContainerWithWire 是可选生成方式；日常从 manual.go 的 NewContainer 开始
+// NewContainer 是默认 Wire 入口，构造后统一执行初始化和资源接管
 // 生成代码仍在编译期检查依赖，没有请求期间反射查找的服务定位器
-func NewContainerWithWire(ctx context.Context, cfg configs.Config, opts bootstrap.Options) (*Container, error) {
+func NewContainer(ctx context.Context, cfg configs.Config, opts bootstrap.Options) (*Container, error) {
 	c, cleanup, err := buildWithWire(ctx, cfg, opts)
 	if err != nil {
 		return nil, err

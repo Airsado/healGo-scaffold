@@ -8,17 +8,17 @@ package wire
 
 import (
 	"context"
-	"heago-scaffold/configs"
-	"heago-scaffold/pkg/bootstrap"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/serve/mapper"
-	"heago-scaffold/pkg/serve/service/impl"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/pkg/bootstrap"
+	"healgo-scaffold/pkg/serve/controller"
+	"healgo-scaffold/pkg/serve/mapper"
+	"healgo-scaffold/pkg/serve/service/impl"
 )
 
 // Injectors from wire.go:
 
 // buildWithWire 生成的只是普通 Go 构造调用；构造完成后的建表、种子初始化
-// 统一由 finish 执行，与默认手写路径保持同一启动规则
+// 统一由 finish 执行，与可选手写路径保持同一启动规则
 func buildWithWire(ctx context.Context, cfg configs.Config, opts bootstrap.Options) (*Container, func(), error) {
 	wireValidatedConfig, err := validateConfig(ctx, cfg)
 	if err != nil {
@@ -50,6 +50,15 @@ func buildWithWire(ctx context.Context, cfg configs.Config, opts bootstrap.Optio
 		cleanup()
 		return nil, nil, err
 	}
+	resources := bootstrap.Resources{
+		Database: cluster,
+		DB:       db,
+		Logger:   logger,
+		Auth:     service,
+		Settings: settingsService,
+		Streams:  manager,
+	}
+	bool2 := opts.EnableExamples
 	noteMapper, err := mapper.NewNoteMapperWithReader(cluster)
 	if err != nil {
 		cleanup3()
@@ -67,7 +76,16 @@ func buildWithWire(ctx context.Context, cfg configs.Config, opts bootstrap.Optio
 		cleanup()
 		return nil, nil, err
 	}
-	container := newContainer(wireValidatedConfig, opts, cluster, db, logger, service, settingsService, manager, noteMapper, noteService, systemController, noteController, realtimeController)
+	container := &Container{
+		Config:             cfg,
+		Resources:          resources,
+		EnableExamples:     bool2,
+		NoteMapper:         noteMapper,
+		NoteService:        noteService,
+		SystemController:   systemController,
+		NoteController:     noteController,
+		RealtimeController: realtimeController,
+	}
 	return container, func() {
 		cleanup3()
 		cleanup2()

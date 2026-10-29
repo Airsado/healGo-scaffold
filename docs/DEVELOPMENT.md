@@ -4,14 +4,14 @@
 
 ## 1. 先把示例运行起来
 
-以下命令在 **heaGo-scaffold 根目录**执行，使用 PowerShell 7.1+、Go 和 Docker。示例采用默认 PostgreSQL 部署，在本机运行并监听 `127.0.0.1:18082`。MySQL 8 或单主单副本的配置方式见 [数据库手册](DATABASE.md)，后面的 HTTP 脚本保持相同。
+以下命令在 **healGo-scaffold 根目录**执行，使用 PowerShell 7.1+、Go 和 Docker。示例采用默认 PostgreSQL 部署，在本机运行并监听 `127.0.0.1:18082`。MySQL 8 或单主单副本的配置方式见 [数据库手册](DATABASE.md)，后面的 HTTP 脚本保持相同。
 
 ```powershell
 pwsh -File scripts/init-config.ps1
 docker compose -f compose.yaml -f compose.dev.yaml --env-file .local/compose.env up -d postgres
 # 等待 PostgreSQL healthy 后，同一入口先迁移再启动
 go run ./cmd/example migrate -config configs/config.local.yaml
-go run ./cmd/example serve -config configs/config.local.yaml -di manual
+go run ./cmd/example serve -config configs/config.local.yaml -di wire
 ```
 
 serve 占用当前终端，另开终端执行后面的 HTTP 步骤；Ctrl+C 通过公共 Runtime 排空再关闭。
@@ -21,7 +21,7 @@ serve 占用当前终端，另开终端执行后面的 HTTP 步骤；Ctrl+C 通�
 | [根 main.go](../main.go) | false | 通用服务：`go run .`，不登记示例表或路由 |
 | [cmd/example/main.go](../cmd/example/main.go) | true | 笔记 CRUD 和 realtime；默认端口 18082 |
 
-这两个程序都调用 [cmd/gin_server.go](../cmd/gin_server.go) 的 Run，支持 serve、migrate、healthcheck、`-config`、`-addr` 和 `-di manual|wire`。默认通用服务使用 `go run . migrate`、`go run . serve`；本手册下面为了演示完整业务而运行独立示例。默认手写注入；需要对照生成结果时停止当前进程，再用 `-di wire` 启动相同程序。
+这两个程序都调用 [cmd/gin_server.go](../cmd/gin_server.go) 的 Run，支持 serve、migrate、healthcheck、`-config`、`-addr` 和 `-di wire|manual`。默认通用服务使用 `go run . migrate`、`go run . serve`；本手册下面为了演示完整业务而运行独立示例。默认使用 Wire 生成装配；需要对照手写构造顺序时，停止当前进程，再用 `-di manual` 启动相同程序。
 
 启动连接和加密主密钥来自私有 YAML，可编辑配置、账号和笔记保存在所选数据库。初始管理员密码来自 bootstrap.admin_password；已有账号改密后使用当前密码，migrate 不重置它。完整配置结构见 [配置模板](../configs/README.md)。默认 Docker app 使用关闭示例的入口。
 ## 2. 先认识 HTTP 契约
@@ -147,15 +147,19 @@ try {
 
 ### 第一步：公共入口与两种装配
 
-看 [cmd.Run](../cmd/gin_server.go)：默认选 wire.NewContainer，`-di wire` 选 NewContainerWithWire，两者接收相同的 ctx、cfg、bootstrap.Options。Options 的 EnableExamples 决定集中模型与路由是否包含示例；InitializeSchema 由 migrate 设置。
+看 [cmd.Run](../cmd/gin_server.go)：默认 `-di wire` 选择 `wire.NewContainer`，`-di manual` 选择 `wire.NewContainerManual`，两者接收相同的 ctx、cfg、bootstrap.Options。Options 的 EnableExamples 决定集中模型与路由是否包含示例；InitializeSchema 由 migrate 设置。
 
-[manual.go](../pkg/wire/manual.go) 直接按 `mapper.NewNoteMapperWithReader → impl.NewNoteService → controller.NewNoteController` 构造业务对象。只有 Note.List 使用 Cluster.Read，其余操作固定主库；事务使用 NewNoteMapper(tx)。可选生成声明集中在 [providers.go](../pkg/wire/providers.go)，所有层只有一张 Wire 图。构造函数不查表、不迁移、不启动后台任务。
+[providers.go](../pkg/wire/providers.go) 按 Infrastructure、Mapper、Service、Controller 分层登记构造函数和 `wire.Bind` 接口关系，再由 AllProviders 汇总。[wire.go](../pkg/wire/wire.go) 使用 `wire.Struct(new(bootstrap.Resources), "*")`、`wire.Struct(new(Container), "*")` 自动填充容器字段；生命周期私有字段用 `wire:"-"` 排除。新增资源时增加 Container 的 Controller 字段、相应层 provider/bind，再执行 `go generate ./pkg/wire`；字段与生成图的完整例子见 [扩展手册](EXTENDING.md#3-默认-wire-注入与可选手写装配)。
 
-Container 公共 finish 调用 Prepare，先处理 [集中模型列表](../internal/model/get_all_models.go)，再补缺失账号/配置。成功之后 CLI 才调用 `router.New(container)`，最后创建 Runtime。不要把首次初始化推迟到 handler 中。
+可选 [manual.go](../pkg/wire/manual.go) 直接按 `mapper.NewNoteMapperWithReader → impl.NewNoteService → controller.NewNoteController` 构造业务对象，结果写入 Container 字面量。只有 Note.List 使用 Cluster.Read，其余操作固定主库；事务使用 NewNoteMapper(tx)。构造函数不查表、不迁移、不启动后台任务。
+
+Container 公共 finish 调用 Prepare，先处理 [集中模型列表](../internal/model/get_all_models.go)，再补缺失账号/配置。成功之后 CLI 才调用 `router.NewEngine(container)` 建立引擎，再调用 `router.New(engine, container)` 登记模块，最后创建 Runtime。不要把首次初始化推迟到 handler 中。
 
 ### 第二步：路由声明路径与权限
 
-看 [router/router.go](../pkg/router/router.go) 和 [routes/note_routes.go](../pkg/router/routes/note_routes.go)。router 统一 `/api/v1`、认证、中间件与示例开关；资源文件把 `/examples/notes` 的方法绑定到 handler，并分别声明 NoteReadPermission、NoteWritePermission。
+看 [router/engine.go](../pkg/router/engine.go)、[router/router.go](../pkg/router/router.go) 和 [routes/note_routes.go](../pkg/router/routes/note_routes.go)。`NewEngine` 配置通用中间件与探活；中央 `New(engine, container)` 只组织现有 `/api/v1` 公共/受保护分组、示例开关和模块登记调用。
+
+系统模块签名为 `RegisterSystemRoutes(container, public, protected)`，笔记为 `RegisterNoteRoutes(container, protected)`，实时通信为 `RegisterRealtimeRoutes(container, public, protected)`。模块使用 Gin 的 `Group/GET/POST/PUT/DELETE` 绑定 Controller 方法；笔记分别声明 NoteReadPermission、NoteWritePermission，完整可复制代码见 [Note 路由示例](LAYER_EXAMPLES.md#routes用原生-gin-声明路径与权限)。新增资源在模块声明路径，在中央入口增加一次登记调用；实际业务放在正式调用区，教学开关继续只控制 Note/realtime。
 
 401 表示无有效登录，403 表示无操作权限；即使有读写权限，仍必须把 owner 传到 SQL 保证资源隔离。router 不构造服务、不处理正文和 SQL。
 
@@ -201,7 +205,7 @@ Runtime 取消流后，HTTP 与 WebSocket 共用单次 ShutdownTimeout 排空；
 | [note_service_impl_test.go](../pkg/serve/service/impl/note_service_impl_test.go) | 标题/slug/身份/revision 规则，非法输入不调用 mapper |
 | [note_mapper_test.go](../pkg/serve/mapper/note_mapper_test.go) | 真实 SQL、唯一约束、owner、清空正文、CAS 并发和取消 |
 | [note_routes_test.go](../pkg/router/routes/note_routes_test.go) | HTTP、权限、DTO/VO、归属、分页与版本冲突 |
-| [wire_test.go](../pkg/wire/wire_test.go) | 默认手写与可选生成装配、初始化、失败清理 |
+| [wire_test.go](../pkg/wire/wire_test.go) | 默认 Wire 与可选手写装配、初始化、失败清理 |
 
 ```powershell
 go test ./pkg/serve/service/impl ./internal/model/note -count=1
@@ -209,8 +213,8 @@ go generate ./pkg/wire
 go tool wire diff ./pkg/wire
 go vet ./...
 go test ./pkg/serve/mapper ./pkg/router/... ./pkg/wire -count=1
-go build -o .build/heago-server .
-go build -o .build/heago-example ./cmd/example
+go build -o .build/healgo-server .
+go build -o .build/healgo-example ./cmd/example
 ```
 
 数据库测试需要 `HEAGO_TEST_DATABASE_URL`（PostgreSQL）或 `HEAGO_TEST_MYSQL_DSN`（MySQL）。两个驱动分别测试，同时设置时优先 PostgreSQL；都未设置会 skip，不能视为数据库验证通过。使用本模板默认 PostgreSQL 开发数据库时，可在终端按提示输入其密码，避免写入命令历史：

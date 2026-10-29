@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"heago-scaffold/internal/testutil"
+	"healgo-scaffold/internal/testutil"
 	"io"
 	"log/slog"
 	"net/http/httptest"
@@ -14,20 +14,20 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/middleware"
-	model "heago-scaffold/internal/model/note"
-	"heago-scaffold/internal/response"
-	"heago-scaffold/internal/settings"
-	"heago-scaffold/pkg/bootstrap"
-	frameworkrouter "heago-scaffold/pkg/router"
-	"heago-scaffold/pkg/router/routes"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/serve/mapper"
-	"heago-scaffold/pkg/serve/service/impl"
-	"heago-scaffold/pkg/vo"
-	"heago-scaffold/pkg/wire"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/middleware"
+	model "healgo-scaffold/internal/model/note"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/internal/settings"
+	"healgo-scaffold/pkg/bootstrap"
+	frameworkrouter "healgo-scaffold/pkg/router"
+	"healgo-scaffold/pkg/router/routes"
+	"healgo-scaffold/pkg/serve/controller"
+	"healgo-scaffold/pkg/serve/mapper"
+	"healgo-scaffold/pkg/serve/service/impl"
+	"healgo-scaffold/pkg/vo"
+	"healgo-scaffold/pkg/wire"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -141,8 +141,11 @@ func newRouter(t *testing.T, database *gorm.DB) *gin.Engine {
 		Auth: configs.Auth{SessionTTL: time.Hour, LoginAttemptsPerMinute: 100}, Security: configs.Security{MaxBodyBytes: 128 * 1024}}
 	container := &wire.Container{Config: cfg, Resources: resources,
 		SystemController: controller.NewSystemController(authentication, configuration, int64(cfg.Auth.SessionTTL/time.Second))}
-	engine, err := frameworkrouter.New(container)
+	engine, err := frameworkrouter.NewEngine(container)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := frameworkrouter.New(engine, container); err != nil {
 		t.Fatal(err)
 	}
 	request(t, engine, "GET", "/api/v1/examples/notes", "", "", 404)
@@ -155,9 +158,9 @@ func newRouter(t *testing.T, database *gorm.DB) *gin.Engine {
 	if err != nil {
 		t.Fatal(err)
 	}
-	notes := controller.NewNoteController(impl.NewNoteService(store))
+	container.NoteController = controller.NewNoteController(impl.NewNoteService(store))
 	protected := engine.Group("/api/v1", middleware.Authenticate(authentication))
-	routes.RegisterNoteRoutes(protected, notes, authentication)
+	routes.RegisterNoteRoutes(container, protected)
 	return engine
 }
 

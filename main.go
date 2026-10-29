@@ -3,7 +3,7 @@ package main
 
 import (
 	"fmt"
-	"heago-scaffold/cmd"
+	"healgo-scaffold/cmd"
 	"os"
 )
 

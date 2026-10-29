@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/internal/stream"
-	"heago-scaffold/internal/stream/sse"
+	"healgo-scaffold/internal/stream"
+	"healgo-scaffold/internal/stream/sse"
 )
 
 type fixture struct {

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"heago-scaffold/configs"
+	"healgo-scaffold/configs"
 )
 
 func TestLoggerLevelAndConfiguration(t *testing.T) {

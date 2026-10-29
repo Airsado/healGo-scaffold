@@ -5,7 +5,7 @@ package service
 import (
 	"context"
 
-	model "heago-scaffold/internal/model/note"
+	model "healgo-scaffold/internal/model/note"
 )
 
 // sentinel 与模型使用同一值，调用方通过 errors.Is 判断，不解析错误文本

@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/internal/response"
-	"heago-scaffold/internal/stream"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/internal/stream"
 
 	coder "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"

@@ -5,16 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"heago-scaffold/internal/testutil"
+	"healgo-scaffold/internal/testutil"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	model "heago-scaffold/internal/model/note"
-	"heago-scaffold/pkg/serve/mapper"
-	"heago-scaffold/pkg/serve/service"
-	"heago-scaffold/pkg/serve/service/impl"
+	model "healgo-scaffold/internal/model/note"
+	"healgo-scaffold/pkg/serve/mapper"
+	"healgo-scaffold/pkg/serve/service"
+	"healgo-scaffold/pkg/serve/service/impl"
 
 	"gorm.io/gorm"
 )

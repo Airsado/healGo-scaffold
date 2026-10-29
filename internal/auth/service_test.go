@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
+	"healgo-scaffold/configs"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

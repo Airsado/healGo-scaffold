@@ -5,7 +5,7 @@
 /backups/
 *.exe
 /server
-/heago-scaffold
+/healgo-scaffold
 /example
 *.test
 coverage.out

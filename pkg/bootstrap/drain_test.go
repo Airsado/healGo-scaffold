@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/stream"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/stream"
 )
 
 // A callback that ignores cancellation must consume only one shutdown budget.

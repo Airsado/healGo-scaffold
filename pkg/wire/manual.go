@@ -3,16 +3,16 @@ package wire
 import (
 	"context"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/pkg/bootstrap"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/serve/mapper"
-	"heago-scaffold/pkg/serve/service/impl"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/pkg/bootstrap"
+	"healgo-scaffold/pkg/serve/controller"
+	"healgo-scaffold/pkg/serve/mapper"
+	"healgo-scaffold/pkg/serve/service/impl"
 )
 
-// NewContainer 是默认入口新增业务时只需要在 buildManual 中增加普通 New 调用，
+// NewContainerManual 提供可选的手写示例，在 buildManual 中增加普通 New 调用，
 // 再放入 Container 并登记路由；无需为每个功能增加一套注册协议
-func NewContainer(ctx context.Context, cfg configs.Config, opts bootstrap.Options) (*Container, error) {
+func NewContainerManual(ctx context.Context, cfg configs.Config, opts bootstrap.Options) (*Container, error) {
 	// build 只组装对象；两条注入路径都必须经过 finish 的初始化屏障
 	c, cleanup, err := buildManual(ctx, cfg, opts)
 	if err != nil {
@@ -89,6 +89,21 @@ func buildManual(ctx context.Context, cfg configs.Config, opts bootstrap.Options
 	}
 	// 只把启动和路由要用的对象放入容器；handler 不接收整个容器
 	// 返回 cleanup 而不在此执行，资源必须活到 HTTP 请求排空之后
-	return newContainer(validated, opts, cluster, database, log, authentication, configuration, streams,
-		noteMapper, noteService, systemController, noteController, realtimeController), cleanup, nil
+	return &Container{
+		Config: validated.Config,
+		Resources: bootstrap.Resources{
+			Database: cluster,
+			DB:       database,
+			Logger:   log,
+			Auth:     authentication,
+			Settings: configuration,
+			Streams:  streams,
+		},
+		EnableExamples:     opts.EnableExamples,
+		NoteMapper:         noteMapper,
+		NoteService:        noteService,
+		SystemController:   systemController,
+		NoteController:     noteController,
+		RealtimeController: realtimeController,
+	}, cleanup, nil
 }

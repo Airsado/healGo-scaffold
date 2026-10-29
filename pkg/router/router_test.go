@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"heago-scaffold/internal/testutil"
+	"healgo-scaffold/internal/testutil"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"heago-scaffold/configs"
-	"heago-scaffold/internal/auth"
-	"heago-scaffold/internal/middleware"
-	"heago-scaffold/internal/response"
-	"heago-scaffold/internal/settings"
-	"heago-scaffold/pkg/bootstrap"
-	"heago-scaffold/pkg/serve/controller"
-	"heago-scaffold/pkg/wire"
+	"healgo-scaffold/configs"
+	"healgo-scaffold/internal/auth"
+	"healgo-scaffold/internal/middleware"
+	"healgo-scaffold/internal/response"
+	"healgo-scaffold/internal/settings"
+	"healgo-scaffold/pkg/bootstrap"
+	"healgo-scaffold/pkg/serve/controller"
+	"healgo-scaffold/pkg/wire"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -95,6 +95,18 @@ func isolatedDatabase(t *testing.T) *gorm.DB {
 	return database
 }
 
+func newTestRouter(t *testing.T, container *wire.Container) *gin.Engine {
+	t.Helper()
+	engine, err := NewEngine(container)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := New(engine, container); err != nil {
+		t.Fatal(err)
+	}
+	return engine
+}
+
 func newFixture(t *testing.T, database *gorm.DB) *fixture {
 	t.Helper()
 	if database == nil {
@@ -115,10 +127,7 @@ func newFixture(t *testing.T, database *gorm.DB) *fixture {
 	}
 	logs := &bytes.Buffer{}
 	log := slog.New(slog.NewJSONHandler(logs, nil))
-	engine, err := New(&wire.Container{Config: cfg, Resources: bootstrap.Resources{DB: database, Auth: authentication, Settings: configuration, Logger: log}, SystemController: controller.NewSystemController(authentication, configuration, int64(cfg.Auth.SessionTTL/time.Second))})
-	if err != nil {
-		t.Fatal(err)
-	}
+	engine := newTestRouter(t, &wire.Container{Config: cfg, Resources: bootstrap.Resources{DB: database, Auth: authentication, Settings: configuration, Logger: log}, SystemController: controller.NewSystemController(authentication, configuration, int64(cfg.Auth.SessionTTL/time.Second))})
 	registerProbeRoutes(engine.Group("/api/v1"), engine.Group("/api/v1", middleware.Authenticate(authentication)), authentication)
 	return &fixture{db: database, auth: authentication, settings: configuration, router: engine, logs: logs, cfg: cfg}
 }
@@ -369,10 +378,7 @@ func TestHTTPBoundariesCORSAndSanitizedRecovery(t *testing.T) {
 	cfg := testConfig()
 	logs := &bytes.Buffer{}
 	authentication := &auth.Service{}
-	engine, err := New(&wire.Container{Config: cfg, Resources: bootstrap.Resources{Auth: authentication, Logger: slog.New(slog.NewJSONHandler(logs, nil))}, SystemController: controller.NewSystemController(authentication, nil, 3600)})
-	if err != nil {
-		t.Fatal(err)
-	}
+	engine := newTestRouter(t, &wire.Container{Config: cfg, Resources: bootstrap.Resources{Auth: authentication, Logger: slog.New(slog.NewJSONHandler(logs, nil))}, SystemController: controller.NewSystemController(authentication, nil, 3600)})
 	registerProbeRoutes(engine.Group("/api/v1"), engine.Group("/api/v1", middleware.Authenticate(authentication)), authentication)
 	request(t, engine, "GET", "/not-registered?secret=sensitive-query-71ab", "", "", 404)
 	request(t, engine, "POST", "/healthz", "", "", 405)
@@ -454,10 +460,7 @@ func TestExampleRoutesRequireExplicitEnablement(t *testing.T) {
 		NoteController:   &controller.NoteController{}, RealtimeController: &controller.RealtimeController{}}
 	for _, enabled := range []bool{false, true} {
 		c.EnableExamples = enabled
-		engine, err := New(c)
-		if err != nil {
-			t.Fatal(err)
-		}
+		engine := newTestRouter(t, c)
 		registered := map[string]bool{}
 		for _, route := range engine.Routes() {
 			registered[route.Method+" "+route.Path] = true

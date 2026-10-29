@@ -1,7 +1,7 @@
 # Copy to config.local.yaml; replace every placeholder before starting the application.
 # MySQL 8.4 LTS. Do not use this bootstrap user as a replica's read-only account.
 app:
-  name: heaGo-scaffold
+  name: healGo-scaffold
   environment: development
 
 http:

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	database "heago-scaffold/internal/db"
+	database "healgo-scaffold/internal/db"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

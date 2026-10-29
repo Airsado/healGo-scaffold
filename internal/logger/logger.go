@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"os"
 
-	"heago-scaffold/configs"
+	"healgo-scaffold/configs"
 )
 
 // New rejects unknown levels instead of silently hiding operational errors.

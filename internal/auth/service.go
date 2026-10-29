@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"heago-scaffold/configs"
+	"healgo-scaffold/configs"
 
 	"github.com/google/uuid"
 	"github.com/sa-tokens/sa-token-go/core"

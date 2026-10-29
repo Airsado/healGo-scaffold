@@ -4,7 +4,7 @@ package vo
 import (
 	"time"
 
-	model "heago-scaffold/internal/model/note"
+	model "healgo-scaffold/internal/model/note"
 )
 
 // NoteVO 保留现有 JSON 契约；ID 使用字符串，防止 JavaScript 舍入 64 位整数

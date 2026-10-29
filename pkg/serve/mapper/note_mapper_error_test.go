@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	model "heago-scaffold/internal/model/note"
+	model "healgo-scaffold/internal/model/note"
 )
 
 type duplicateError struct{}

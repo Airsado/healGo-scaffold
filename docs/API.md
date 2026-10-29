@@ -66,7 +66,7 @@ PUT `/system/roles/viewer` 使用 `{ "permissions": ["system:settings:read"] }`�
 GET `/system/settings/system.display_name` 的 data 示例：
 
 ```json
-{"key":"system.display_name","description":"系统显示名称","value":"heaGo-scaffold","secret":false,"configured":true,"revision":1,"updated_at":"2026-10-26T00:00:00Z"}
+{"key":"system.display_name","description":"系统显示名称","value":"healGo-scaffold","secret":false,"configured":true,"revision":1,"updated_at":"2026-10-26T00:00:00Z"}
 ```
 
 PUT 同一路径：
