@@ -57,6 +57,10 @@ PUT `/system/users/:id/roles` 使用 `{ "roles": ["viewer"] }`，最多 32 个�
 
 PUT `/system/roles/viewer` 使用 `{ "permissions": ["system:settings:read"] }`，最多 100 项。完整替换权限集合，空集合取消全部权限。`admin` 是受保护的内置角色，权限固定为 `*`；不能禁用或移除最后一个有效管理员的 admin 角色。
 
+权限名最多 128 字节、8 个冒号分段，普通段只允许 ASCII 字母、数字、下划线、点和短横线，`*` 必须独占一段。支持精确权限 `system:settings:read`、全部权限 `*`、固定前缀 `system:*` / `system:settings:*`，以及段数相同的通配 `system:*:read` / `*:settings:read` / `system:*:*:read`。固定前缀匹配也覆盖更深层级，其余分段通配要求段数相同。
+
+以 `:*` 结尾且前面还有 `*` 的模式（如 `system:*:*`、`*:settings:*`、`*:*`）不受当前 Sa-Token 匹配器支持，保存时返回 **400 `invalid_input`**，不会执行数据库写入。
+
 ## 配置更新与冲突
 
 GET `/system/settings/system.display_name` 的 data 示例：

@@ -73,6 +73,61 @@ func TestValidationAndSecretSerialization(t *testing.T) {
 	}
 }
 
+func TestUnsupportedPermissionPatternsRejectedBeforeDatabaseAccess(t *testing.T) {
+	// 不配置数据库：若校验遗漏并进入事务，测试会立即失败
+	// 因而测试同时覆盖返回错误类别和“无效权限不执行 SQL”的边界
+	service := &Service{}
+	for _, pattern := range []string{"system:*:*", "*:settings:*", "*:*", "system:*:settings:*", "system:*:*:*"} {
+		t.Run(pattern, func(t *testing.T) {
+			if err := service.PutRole(context.Background(), "viewer", []string{pattern}); !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("unsupported pattern should fail validation before database access: %v", err)
+			}
+		})
+	}
+}
+
+func TestSupportedPermissionPatternsMatchSaToken(t *testing.T) {
+	// 使用真实 Sa-Token 匹配器验证兼容范围，避免只测试自己的字符串规则
+	// 构造器不访问数据库，这些匹配契约无需启动 PostgreSQL 或 MySQL
+	service, err := New(&gorm.DB{}, configs.Auth{SessionTTL: time.Hour, MaxSessions: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	for _, tc := range []struct {
+		pattern string
+		granted []string
+		denied  []string
+	}{
+		{pattern: "*", granted: []string{"system:settings:read", "orders:write"}},
+		{pattern: "system:settings:read", granted: []string{"system:settings:read"}, denied: []string{"system:users:read", "system:settings:write"}},
+		{pattern: "system:*", granted: []string{"system:settings:read", "system:settings:read:detail"}, denied: []string{"orders:read", "systematic:read"}},
+		{pattern: "system:settings:*", granted: []string{"system:settings:read"}, denied: []string{"system:users:read"}},
+		{pattern: "system:*:read", granted: []string{"system:settings:read"}, denied: []string{"system:settings:write", "system:settings:read:detail"}},
+		{pattern: "*:settings:read", granted: []string{"system:settings:read"}, denied: []string{"system:users:read"}},
+		{pattern: "system:*:*:read", granted: []string{"system:settings:detail:read"}, denied: []string{"system:settings:read", "system:settings:detail:write"}},
+	} {
+		t.Run(tc.pattern, func(t *testing.T) {
+			if !validPermission(tc.pattern) {
+				t.Fatal("supported pattern rejected by validation")
+			}
+			if err := service.manager.SetPermissions("1:1", []string{tc.pattern}); err != nil {
+				t.Fatal(err)
+			}
+			for _, permission := range tc.granted {
+				if !service.manager.HasPermission("1:1", permission) {
+					t.Errorf("pattern %q did not grant %q", tc.pattern, permission)
+				}
+			}
+			for _, permission := range tc.denied {
+				if service.manager.HasPermission("1:1", permission) {
+					t.Errorf("pattern %q unexpectedly granted %q", tc.pattern, permission)
+				}
+			}
+		})
+	}
+}
+
 func TestBootstrapPersistenceAndHeaderOnlyAuthentication(t *testing.T) {
 	ctx := context.Background()
 	db := isolatedDB(t)

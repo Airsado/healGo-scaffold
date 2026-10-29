@@ -6,7 +6,8 @@
 
 ## 内容
 
-- [ci.yml](ci.yml)：使用 Ubuntu、Go 1.26.5，按 PostgreSQL 16/MySQL 8.4 矩阵分别启动独立单库，检查 `pkg/wire` 的单张依赖图，运行 `go vet`、真实数据库的 `go test -race`，并构建通用根入口与独立示例两个程序。通用程序构建目标为根目录 `.`；装配测试继续覆盖手写与 Wire 两条路径。
+- [ci.yml](ci.yml)：使用 Ubuntu、Go 1.26.10，按 PostgreSQL 16/MySQL 8.4 矩阵分别启动独立单库，检查 `pkg/wire` 的单张依赖图，运行 `go vet`、固定版本 `govulncheck v1.9.0`、真实数据库的 `go test -race`，并构建通用根入口与独立示例两个程序。通用程序构建目标为根目录 `.`；装配测试继续覆盖手写与 Wire 两条路径。
+- PowerShell 离线回归检查复制验收脚本的数据库筛选、`-Race`、错误退出和环境恢复，使用假连接与 mock Go，不运行复制故障注入。
 - PostgreSQL 通过 `HEAGO_TEST_DATABASE_URL` 获取测试连接，测试创建、清理随机 schema；MySQL 通过 `HEAGO_TEST_MYSQL_DSN` 获取测试管理连接，测试创建、清理随机 database。矩阵仅设置当前数据库对应变量。
 - 该矩阵验证两种数据库的功能回归；真实主从、复制延迟及停节点验收另用[本地主从验收脚本](../../scripts/replication/README.md)，不能把单库 CI 通过当作复制验证通过。
 

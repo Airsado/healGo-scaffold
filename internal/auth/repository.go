@@ -403,6 +403,15 @@ func validPermission(permission string) bool {
 			return false
 		}
 	}
+	// Sa-Token v0.2.3 对结尾 :* 优先使用字面前缀匹配，不展开前面的 *
+	// 拒绝无法按分段通配语义匹配的组合，避免成功保存后仍始终被拒绝
+	if len(parts) > 1 && parts[len(parts)-1] == "*" {
+		for _, part := range parts[:len(parts)-1] {
+			if part == "*" {
+				return false
+			}
+		}
+	}
 	return true
 }
 

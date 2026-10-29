@@ -40,7 +40,7 @@ try {
     foreach ($name in $testEnvironment.Keys) {
         [Environment]::SetEnvironmentVariable($name, $testEnvironment[$name], 'Process')
     }
-    [Environment]::SetEnvironmentVariable('HEAGO_TEST_REPLICATION', $null, 'Process')
+    [Environment]::SetEnvironmentVariable('HEAGO_TEST_REPLICATION', [NullString]::Value, 'Process')
     $testArguments = @('test', '-count=1')
     if ($Race) { $testArguments += '-race' }
     $testArguments += @('./...', '-timeout', '240s')
@@ -48,11 +48,11 @@ try {
     if ($Database -ne 'MySQL') {
         # Other driver's suite skips naturally; this proves each driver's coverage independently.
         [Environment]::SetEnvironmentVariable('HEAGO_TEST_DATABASE_URL', $testEnvironment.HEAGO_TEST_DATABASE_URL, 'Process')
-        [Environment]::SetEnvironmentVariable('HEAGO_TEST_MYSQL_DSN', $null, 'Process')
+        [Environment]::SetEnvironmentVariable('HEAGO_TEST_MYSQL_DSN', [NullString]::Value, 'Process')
         Invoke-GoTests 'Running full suite against PostgreSQL 16...' $testArguments
     }
     if ($Database -ne 'Postgres') {
-        [Environment]::SetEnvironmentVariable('HEAGO_TEST_DATABASE_URL', $null, 'Process')
+        [Environment]::SetEnvironmentVariable('HEAGO_TEST_DATABASE_URL', [NullString]::Value, 'Process')
         [Environment]::SetEnvironmentVariable('HEAGO_TEST_MYSQL_DSN', $testEnvironment.HEAGO_TEST_MYSQL_DSN, 'Process')
         Invoke-GoTests 'Running full suite against MySQL 8.4...' $testArguments
     }
@@ -62,13 +62,28 @@ try {
         [Environment]::SetEnvironmentVariable('HEAGO_TEST_REPLICATION', '1', 'Process')
         $replicationArguments = @('test', '-count=1')
         if ($Race) { $replicationArguments += '-race' }
-        $replicationArguments += @('./internal/db', '-run', '^TestReplicationIntegration$', '-timeout', '240s')
+        # Go matches slash-separated -run expressions against each subtest level
+        # Anchor the engine too, so selecting MySQL never reaches the PostgreSQL fault injection
+        # ValidateSet is case-insensitive, while Go subtest regexes are case-sensitive
+        $enginePattern = switch ($Database) {
+            'Postgres' { 'Postgres' }
+            'MySQL' { 'MySQL' }
+            default { '(Postgres|MySQL)' }
+        }
+        $replicationPattern = '^TestReplicationIntegration$/^' + $enginePattern + '$'
+        $replicationArguments += @('./internal/db', '-run', $replicationPattern, '-timeout', '240s')
         Invoke-GoTests 'Running real replication delay and replica-failure integration...' $replicationArguments
     }
     Write-Host 'Selected database verification completed.'
 } finally {
     foreach ($name in $previous.Keys) {
-        [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+        # PowerShell can coerce $null to an empty string when binding a string argument
+        # NullString preserves absence rather than creating an empty environment entry
+        if ($null -eq $previous[$name]) {
+            [Environment]::SetEnvironmentVariable($name, [NullString]::Value, 'Process')
+        } else {
+            [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+        }
     }
     Pop-Location
 }

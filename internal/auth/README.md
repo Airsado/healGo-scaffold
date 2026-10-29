@@ -12,4 +12,16 @@
 
 服务始终接收普通主库连接。登录、凭据版本和权限检查必须读到最新提交，不经过副本；复制延迟不能让已禁用账号继续获得权限。初始化和最后管理员变更通过 [数据库锁事务](../db/transaction.go) 跨进程串行：PostgreSQL 使用事务锁，MySQL 使用覆盖提交的同连接会话锁。MySQL 数据表使用 `utf8mb4_bin`，使 `Alice` 和 `alice` 的大小写语义与 PostgreSQL 一致。
 
+权限名最多 128 字节、8 个冒号分段；普通段只允许 ASCII 字母、数字、下划线、点和短横线，`*` 必须独占一段。匹配直接使用 Sa-Token，不另写匹配器：
+
+| 示例 | 行为 |
+|---|---|
+| `system:settings:read` | 精确匹配 |
+| `*` | 匹配所有权限 |
+| `system:*`、`system:settings:*` | 匹配固定前缀后的权限，包括更深层级 |
+| `system:*:read`、`*:settings:read`、`system:*:*:read` | 按同样段数匹配，`*` 替代单段 |
+| `system:*:*`、`*:settings:*`、`*:*` | 拒绝并返回 `ErrInvalidInput`，不访问数据库 |
+
+Sa-Token v0.2.3 对以 `:*` 结尾的模式先执行字面前缀匹配，因此此类模式前面不能再含 `*`。限制同时用于保存权限与路由权限校验，防止保存成功却不能匹配预期操作。
+
 设置 `HEAGO_TEST_DATABASE_URL`（PostgreSQL）或 `HEAGO_TEST_MYSQL_DSN`（MySQL）后，在根目录执行 `go test ./internal/auth -count=1`。两个变量都有值时优先 PostgreSQL，CI 应分两次运行。测试数据库账号需要创建和清理隔离 schema/database 的权限，仅用于专用测试实例。

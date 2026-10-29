@@ -8,6 +8,7 @@
 
 - [replication.ps1](replication.ps1)：PowerShell 7 主脚本，通过 Docker 启动、暂停复制、恢复、查看状态和清理测试资源。
 - [run-tests.ps1](run-tests.ps1)：加载私有连接变量，依次运行 PostgreSQL/MySQL 全量测试；可选执行会改变副本状态的复制验收。
+- [test-run-tests.ps1](test-run-tests.ps1)：使用临时副本、假连接和 mock Go 验证验收入口，不依赖 Docker、数据库或 Pester，也不读取现有私有配置。
 - PostgreSQL 使用 `pg_basebackup` 建立物理流复制；副本回放可以暂停，应用读账号只有查询权限。
 - MySQL 使用 GTID 自动定位；副本开启并持久化 `read_only`、`super_read_only`，应用读账号只有 `SELECT`、`SHOW VIEW`。
 - 每次 `Start` 在主库写入新的随机探针值，并等待副本读到该值，避免把旧数据当成复制成功。
@@ -48,13 +49,21 @@ pwsh -NoProfile -File scripts/replication/replication.ps1 -Action Clean
 
 `-Database Postgres` 或 `-Database MySQL` 可限定操作范围；默认 `All`。`Start` 会恢复之前暂停的复制。停机、暂停及清理前应确认其他测试没有使用这些节点；不要在并行测试期间改变其状态。
 
-推荐的完整验收入口如下。脚本每次只启用当前单库测试变量，最后恢复调用者原有进程环境。`-IncludeReplication` 会显式开启 `HEAGO_TEST_REPLICATION=1`，运行 `TestReplicationIntegration`，其中暂停复制、停止副本属于该测试的故障注入步骤；其他测试不会自动执行这些操作。
+推荐的完整验收入口如下。脚本每次只启用当前单库测试变量，最后恢复调用者原有进程环境。`-IncludeReplication` 会显式开启 `HEAGO_TEST_REPLICATION=1`，按 `-Database` 严格选择 `TestReplicationIntegration/Postgres`、`TestReplicationIntegration/MySQL`，`All` 则执行两者。其中暂停复制、停止副本属于选中子测试的故障注入步骤；未选中的数据库不会执行这些操作，其他测试也不会自动执行。
 
 ```powershell
 pwsh -NoProfile -File scripts/replication/run-tests.ps1
 pwsh -NoProfile -File scripts/replication/run-tests.ps1 -Database MySQL
 pwsh -NoProfile -File scripts/replication/run-tests.ps1 -IncludeReplication
+# 只需启动 MySQL 主从，即可完成该驱动的全量测试与复制故障验收
+pwsh -NoProfile -File scripts/replication/run-tests.ps1 -Database MySQL -IncludeReplication
 # Linux/已配置C编译器的Windows可额外加 -Race
+```
+
+修改验收入口时先运行以下离线回归。它覆盖三个数据库选项及其大小写写法、复制开关、`-Race`、Go 失败后的非零退出与不再继续执行，以及成功或失败后的进程环境和工作目录恢复。临时副本使用假连接，所有 Go 调用均被 mock，不连接或暂停任何真实数据库，可直接用于 CI：
+
+```powershell
+pwsh -NoProfile -File scripts/replication/test-run-tests.ps1
 ```
 
 ## 私有文件与测试变量

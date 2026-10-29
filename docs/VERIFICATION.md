@@ -1,6 +1,34 @@
 # 验证记录
 
-最近验证：2026-10-27。环境：Windows / Go 1.26.5、Docker Linux 容器、PostgreSQL 16、MySQL 8.4。以下区分双数据库迭代、此前 MVC 重构及旧部署实测，不代表未来业务自动满足相同条件。
+最近验证：2026-10-29。当前工具链为 Go 1.26.10。以下按日期区分本轮修复、双数据库迭代、此前 MVC 重构及旧部署实测，不代表未来业务自动满足相同条件。
+
+## 安全补丁与仓库审查修复（2026-10-29）
+
+本轮仅修复依赖漏洞、无法兑现的权限通配模式，以及复制验收忽略数据库筛选三个问题，未增加业务或多数据源能力。
+
+`go.mod` 最低版本、Docker builder 与 CI 统一为 Go 1.26.10，Docker 多架构摘要已与官方 Registry 核对。更新 `quic-go v0.59.1`、`x/net v0.62.0` 及其最低传递要求：`x/crypto v0.58.0`、`x/text v0.43.0`、`x/sys v0.49.0`、`x/sync v0.24.0`、`x/mod v0.41.0`、`x/tools v0.51.0`；Gin、GORM 和 Sa-Token 版本保持原值。
+
+权限保存会在 SQL 前拒绝 `system:*:*`、`*:settings:*`、`*:*` 等 Sa-Token v0.2.3 无法按预期匹配的组合，继续支持 `*`、固定前缀以及末段为普通文本的分段通配。回归直接调用真实 Sa-Token 匹配器，覆盖允许模式的正反匹配及无效模式不访问数据库；规则详见[认证模块](../internal/auth/README.md)。
+
+复制验收按 `All`、`Postgres`、`MySQL` 生成父测试和子测试两级锚定的 `-run` 正则，参数大小写会规范化。离线回归覆盖 30 组数据库筛选、复制开关、`-Race`、失败后停止、不误报成功、进程环境与工作目录恢复，并验证失败子进程返回非零退出码。另将原本不存在的环境变量精确恢复为不存在，兼容 PowerShell 对 `$null` 字符串参数的转换；回归仅使用临时副本、假连接和 mock Go。
+
+| 本轮实际检查 | 结果 |
+|---|---|
+| Windows / Go 1.26.10，`go test -count=1 ./... -timeout 180s` | 通过；此轮未设置数据库测试变量，真实数据库与主从测试跳过 |
+| 独立 PostgreSQL 16 / MySQL 8.4，分别运行 Windows 全量 `go test -count=1 -p 1 ./...` | 两种驱动均通过，使用一次性专用容器和隔离 schema/database |
+| Linux / Go 1.26.10 + GCC 14.2.0，双驱动分别运行全量 `go test -race -p 1 ./... -count=1` | PostgreSQL 16.14 / MySQL 8.4.13 均通过，无 `DATA RACE`；专用测试容器与网络已清理 |
+| `go vet ./...`、`go tool wire diff ./pkg/wire` | 通过 |
+| 通用根入口、`cmd/example` 分别构建 | 通过，产物工具链为 Go 1.26.10 |
+| `go mod tidy -diff`、`go mod verify` | 通过，无依赖差异，模块校验通过 |
+| `pwsh -NoProfile -File scripts/replication/test-run-tests.ps1` | 30 组用例及失败子进程非零退出检查通过 |
+| `go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...` | 退出码 0；符号可达漏洞 0，导入包漏洞 0，模块级记录 1 |
+| Docker 镜像构建（本地导入的官方 builder） | 成功生成 `heago-scaffold:security-fixes`，构建路径与限制见下文 |
+
+本机 Docker daemon 直连官方 Registry 时 DNS/网络超时，原始 `docker build` 在基础镜像元数据解析阶段失败。随后仅在本次进程设置代理，通过固定的官方多架构摘要下载对应 `linux/amd64` builder 并导入本地；临时 Dockerfile 只将首行 builder 改为该本地标签，其余构建内容与维护版一致，完整编译及运行层构建成功。维护版仍固定官方标签和多架构摘要，未修改 Docker 全局配置；本次替代路径不能视为本机原始在线拉取已恢复。
+
+剩余模块级记录为 `GO-2026-5932`，对应已弃用且没有修复版本的 `golang.org/x/crypto/openpgp`；当前依赖图没有导入该包，项目密码散列仍使用同模块中的 bcrypt。该记录不能描述为可达漏洞，也不能声称全部模块级记录归零。源码扫描结果仅对应当前版本、平台和漏洞库状态。
+
+CI 已加入固定版本漏洞扫描和复制脚本离线回归，保留原双数据库 race 矩阵；尚未实际触发托管 GitHub Actions。本轮没有运行会暂停复制或停止副本的主从故障验收，也没有替换现有运行中的应用。
 
 ## 本轮入口统一（2026-10-27）
 
