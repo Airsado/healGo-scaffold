@@ -1,0 +1,63 @@
+# One primary and at most one replica. Configure actual database replication separately.
+# Replace every placeholder and use a database-enforced read-only account on the replica.
+app:
+  name: heaGo-scaffold
+  environment: development
+
+http:
+  addr: ":8080"
+  read_header_timeout: 5s
+  read_timeout: 15s
+  write_timeout: 35s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+  request_timeout: 30s
+
+database:
+  driver: postgres
+  # Shared pool limits; each node owns its own pool, so total capacity is their sum.
+  max_open: 20
+  max_idle: 5
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+  connect_timeout: 5s
+  retry_delay: 1s
+  retry_attempts: 5
+  auto_migrate: false
+  # Applies only to explicitly replica-eligible reads; primary-required reads never switch.
+  fallback_to_primary: true
+  # Do not also declare flat host/port/name/user/password/ssl_mode/tls beside primary.
+  primary:
+    host: postgres-primary
+    port: 5432
+    name: heago
+    user: heago_writer
+    password: "REPLACE_WITH_PRIMARY_PASSWORD"
+    ssl_mode: disable
+  replicas:
+    - host: postgres-replica
+      # Database name, port, TLS and pool limits inherit from primary if omitted.
+      # Host/user/password are always required; the primary password is never inherited.
+      user: heago_reader
+      password: "REPLACE_WITH_REPLICA_PASSWORD"
+      max_open: 10
+      max_idle: 2
+
+auth:
+  session_ttl: 24h
+  max_sessions: 5
+  login_attempts_per_minute: 60
+
+bootstrap:
+  admin_username: admin
+  admin_password: "REPLACE_WITH_ADMIN_PASSWORD"
+
+security:
+  encryption_key: "REPLACE_WITH_BASE64_ENCRYPTION_KEY"
+  trusted_proxies: []
+  cors_origins: []
+  max_body_bytes: 1048576
+
+logging:
+  level: info
+  format: json

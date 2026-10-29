@@ -1,0 +1,9 @@
+heaGo-scaffold uses the architecture of Done-0/gin-scaffold as a design reference:
+https://github.com/Done-0/gin-scaffold
+Reference commit: 22e3136bc4d09505824f2ca391d6fa20309790b6
+Upstream license: Apache License, Version 2.0.
+
+This template implements its own configuration, lifecycle, PostgreSQL integration,
+Sa-Token-Go adapter and settings services. It preserves a similar separation of
+configuration, startup, routing and HTTP controllers; it is not an upstream fork.
+Third-party dependencies retain their own licenses; see go.mod and go.sum.

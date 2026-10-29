@@ -1,0 +1,55 @@
+name: Go checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Go checks (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - database: postgres
+            image: postgres:16
+            port: 5432
+            health: pg_isready -h 127.0.0.1 -U heago_test -d heago_test
+            postgres_dsn: postgres://heago_test:isolated-ci-database-password@127.0.0.1:5432/heago_test?sslmode=disable
+            mysql_dsn: ''
+          - database: mysql
+            image: mysql:8.4
+            port: 3306
+            health: mysqladmin ping --host=127.0.0.1 --silent
+            postgres_dsn: ''
+            mysql_dsn: root:isolated-ci-database-password@tcp(127.0.0.1:3306)/heago_test?charset=utf8mb4&parseTime=true&loc=UTC
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          # Both images ignore the other driver's initialization variables.
+          # These public credentials belong only to an ephemeral CI service.
+          POSTGRES_DB: heago_test
+          POSTGRES_USER: heago_test
+          POSTGRES_PASSWORD: isolated-ci-database-password
+          MYSQL_DATABASE: heago_test
+          MYSQL_ROOT_PASSWORD: isolated-ci-database-password
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - '${{ matrix.port }}:${{ matrix.port }}'
+        options: >-
+          --health-cmd "${{ matrix.health }}"
+          --health-interval 5s --health-timeout 3s --health-retries 30
+    env:
+      HEAGO_TEST_DATABASE_URL: ${{ matrix.postgres_dsn }}
+      HEAGO_TEST_MYSQL_DSN: ${{ matrix.mysql_dsn }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          cache: true
+      - run: go tool wire diff ./pkg/wire
+      - run: go vet ./...
+      - run: go test -race -count=1 ./... -timeout 180s
+      - run: go build -o /tmp/heago-server .
+      - run: go build -o /tmp/heago-example ./cmd/example

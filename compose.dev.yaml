@@ -1,0 +1,6 @@
+# Publish only this template's PostgreSQL for host-side development/tests.
+# Application bootstrap still comes from YAML files, not database environment variables.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:55434:5432"

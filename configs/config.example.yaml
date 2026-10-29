@@ -1,0 +1,58 @@
+# Copy to config.local.yaml and keep that private file out of Git.
+# This is deployment/bootstrap configuration. Editable runtime settings belong in the database.
+# Replace all three placeholders; generate the key with: openssl rand -base64 32
+app:
+  name: heaGo-scaffold
+  environment: development
+
+http:
+  addr: ":8080"
+  read_header_timeout: 5s
+  read_timeout: 15s
+  write_timeout: 35s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+  request_timeout: 30s
+
+database:
+  # Omitted driver remains postgres for compatibility with earlier versions.
+  driver: postgres
+  host: 127.0.0.1
+  port: 5432
+  name: heago
+  user: heago
+  password: "REPLACE_WITH_DATABASE_PASSWORD"
+  # disable is suitable only for a local/private Docker network. Use verify-full with TLS in production.
+  ssl_mode: disable
+  max_open: 20
+  max_idle: 5
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+  connect_timeout: 5s
+  retry_delay: 1s
+  retry_attempts: 5
+  # Development convenience only. Production: initialize schema explicitly, then keep false.
+  auto_migrate: false
+
+auth:
+  session_ttl: 24h
+  max_sessions: 5
+  login_attempts_per_minute: 60
+
+bootstrap:
+  admin_username: admin
+  # Initial creation only; editing this value does not reset an existing database account.
+  admin_password: "REPLACE_WITH_ADMIN_PASSWORD"
+
+security:
+  # Exactly 32 random bytes, standard base64 encoded; retain it across restarts and backups.
+  encryption_key: "REPLACE_WITH_BASE64_ENCRYPTION_KEY"
+  trusted_proxies: []
+  # Exact origins only, e.g. ["http://localhost:5173"]. An empty list disables cross-origin access.
+  cors_origins: []
+  max_body_bytes: 1048576
+
+logging:
+  level: info
+  # JSON on stdout lets Docker collect/rotate logs without two competing rotation systems.
+  format: json

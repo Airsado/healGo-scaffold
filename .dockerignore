@@ -1,0 +1,13 @@
+.git
+.local
+.build
+tmp
+coverage*
+*.out
+*.test
+*.exe
+server
+configs/config.local.yaml
+configs/config.docker.yaml
+docs
+README.md

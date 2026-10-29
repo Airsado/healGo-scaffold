@@ -1,0 +1,75 @@
+name: heago-scaffold
+
+services:
+  postgres:
+    image: postgres:16@sha256:287eced1f33b59ed265ed13a60d3680dd7646d70c4dc0e785f59a470ebc03eeb
+    environment:
+      POSTGRES_DB: heago
+      POSTGRES_USER: heago
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "heago", "-d", "heago"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  migrate:
+    image: heago-scaffold:local
+    build: .
+    command: ["migrate", "-config", "/app/configs/config.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./configs/config.docker.yaml:/app/configs/config.yaml:ro
+    # Match the private config's host group while retaining the unprivileged app UID.
+    group_add:
+      - "${HEAGO_CONFIG_GID:-0}"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+
+  app:
+    image: heago-scaffold:local
+    build: .
+    command: ["serve", "-config", "/app/configs/config.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:18081:8080"
+    volumes:
+      - ./configs/config.docker.yaml:/app/configs/config.yaml:ro
+    group_add:
+      - "${HEAGO_CONFIG_GID:-0}"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "/app/server", "healthcheck", "-config", "/app/configs/config.yaml"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: ./.local/postgres_password
+
+volumes:
+  pgdata:

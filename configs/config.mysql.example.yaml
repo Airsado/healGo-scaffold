@@ -1,0 +1,53 @@
+# Copy to config.local.yaml; replace every placeholder before starting the application.
+# MySQL 8.4 LTS. Do not use this bootstrap user as a replica's read-only account.
+app:
+  name: heaGo-scaffold
+  environment: development
+
+http:
+  addr: ":8080"
+  read_header_timeout: 5s
+  read_timeout: 15s
+  write_timeout: 35s
+  idle_timeout: 60s
+  shutdown_timeout: 10s
+  request_timeout: 30s
+
+database:
+  driver: mysql
+  host: 127.0.0.1
+  port: 3306
+  name: heago
+  user: heago
+  password: "REPLACE_WITH_DATABASE_PASSWORD"
+  # true verifies the server certificate. false is only for a trusted local/private network.
+  # skip-verify is deliberately unsupported. Omitted tls defaults to true.
+  tls: false
+  max_open: 20
+  max_idle: 5
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+  connect_timeout: 5s
+  retry_delay: 1s
+  retry_attempts: 5
+  auto_migrate: false
+
+auth:
+  session_ttl: 24h
+  max_sessions: 5
+  login_attempts_per_minute: 60
+
+bootstrap:
+  admin_username: admin
+  # Initial creation only; changing this does not reset an existing account.
+  admin_password: "REPLACE_WITH_ADMIN_PASSWORD"
+
+security:
+  encryption_key: "REPLACE_WITH_BASE64_ENCRYPTION_KEY"
+  trusted_proxies: []
+  cors_origins: []
+  max_body_bytes: 1048576
+
+logging:
+  level: info
+  format: json

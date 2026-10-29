@@ -1,0 +1,12 @@
+/configs/config.local.yaml
+/configs/config.docker.yaml
+/.local/
+/.build/
+/backups/
+*.exe
+/server
+/heago-scaffold
+/example
+*.test
+coverage.out
+.idea/
